@@ -35,12 +35,13 @@ namespace MCUBoot.DateModels
         public bool AutoWrap { get; set; } = true;
         public bool AutoScroll { get; set; } = true;
         public bool ShowSend {  get; set; } = true;
-        public bool ShowLineNumbers { get; set; }
+        public bool ShowRowNumbers { get; set; }
         public bool ShowTxRx { get; set; }
         public EncodingType ReceiveEncoding { get; set; } = EncodingType.UTF8;
         public EncodingType SendEncoding { get; set; } = EncodingType.UTF8;
         //同步发送编码方式到接收解码
         public bool SyncDecode2Encode { get; set; }
+
         //暂停显示接收
         public bool PauseShowReceived { get; set; } = false;
     }

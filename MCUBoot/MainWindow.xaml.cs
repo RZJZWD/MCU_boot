@@ -12,7 +12,6 @@ using System.IO.Ports;
 using MCUBoot.DateModels;
 using MCUBoot.Services;
 using System.Security.AccessControl;
-using System.Threading.Tasks;
 namespace MCUBoot
 {
     /// <summary>
@@ -96,33 +95,30 @@ namespace MCUBoot
         /// </summary>
         private void OnAvailablePortsChanged(object sender, string[] ports)
         {
-            // Use BeginInvoke to avoid blocking the caller thread
-            Dispatcher.BeginInvoke(new System.Action(() =>
+            Dispatcher.Invoke(() =>
             {
                 LoadAvailablePortsUI(ports);
-            }));
+            });
         }
         /// <summary>
         /// 处理连接状态变化事件
         /// </summary>
         private void OnConnectionStateChanged(object sender, bool isConnected)
         {
-            // Use BeginInvoke to avoid blocking the caller thread
-            Dispatcher.BeginInvoke(new System.Action(() =>
+            Dispatcher.Invoke(() =>
             {
                 UpdateConnectionUI(isConnected);
-            }));
+            });
         }
         /// <summary>
         /// 串口数据接收处理
         /// </summary>
         private void OnDataReceived(object sender, DataReceivedEventArgs e)
         {
-            // Use BeginInvoke so the serial port thread is not blocked waiting for UI thread
-            Dispatcher.BeginInvoke(new System.Action(() =>
+            Dispatcher.Invoke(() =>
             {
                 _dataProcessService.ProcessReceivedData(e.Data,_DisplayConfig);
-            }));
+            });
         }
         /// <summary>
         /// 处理串口错误事件
@@ -133,11 +129,10 @@ namespace MCUBoot
         /// <param name="errorMessage">A string containing the error message to display. Cannot be null.</param>
         private void OnSerialError(object sender, string errorMessage)
         {
-            // Use BeginInvoke to avoid blocking caller thread
-            Dispatcher.BeginInvoke(new System.Action(() =>
+            Dispatcher.Invoke(() =>
             {
                 MessageBox.Show(errorMessage,"串口错误", MessageBoxButton.OK,MessageBoxImage.Error);
-            }));
+            });
         }
 
         //数据处理事件处理方法
@@ -146,7 +141,11 @@ namespace MCUBoot
         /// </summary>
         private void OnDataProcessed(object sendr,string processedText)
         {
-            AppendToReceivedText(processedText);
+            if (!_DisplayConfig.PauseShowReceived)
+            {
+                AppendToReceivedText(processedText);
+            }
+            
         }
         /// <summary>
         /// 有帧处理数据处理完成事件
@@ -154,8 +153,12 @@ namespace MCUBoot
         private void OnReceivedFrameProcessed(object sendr, ReceivedFrameProcessedEventArgs e)
         {
             //AppendToReceivedText(e.DisplayText);
-            string frameText = $"[帧数据] {e.DisplayText}\r\n";
-            AppendToReceivedText(frameText);
+            if (!_DisplayConfig.PauseShowReceived)
+            {
+                string frameText = $"[帧数据] {e.DisplayText}\r\n";
+                AppendToReceivedText(frameText);
+            }
+            
         }
 
         #endregion
@@ -192,7 +195,17 @@ namespace MCUBoot
             cmbDateBits.IsEnabled = !isConnected;
             cmbStopBits.IsEnabled = !isConnected;
             cmbParity.IsEnabled = !isConnected;
-        }   
+        } 
+        /// <summary>
+        /// 更新暂停显示按钮
+        /// </summary>
+        /// <param name="isPaused">暂停显示</param>
+        private void UpdatePauseShowRecvUI(bool isPaused)
+        {
+            BtnPauseShowReceived.Content = isPaused ? "继续显示" : "暂停显示";
+            BtnPauseShowReceived.Background = isPaused ? Brushes.Orange : Brushes.LightGreen;
+            BtnPauseShowReceived.Foreground = isPaused ? Brushes.White : Brushes.Black;
+        }
 
         /// <summary>
         /// 串口开关按钮点击事件
@@ -207,11 +220,13 @@ namespace MCUBoot
                     UpdateSerialConfigFromUI();
                     //打开串口
                     _serialPortService.Open(_SerialPortConfig);
+                    AppendToReceivedText($"---已开启串口 {_SerialPortConfig.PortName} ---\r\n");
                 }
                 else
                 {
                     //关闭串口
                     _serialPortService.Close();
+                    AppendToReceivedText($"---已关闭串口 {_SerialPortConfig.PortName} ---\r\n");
                 }
             }
             catch (Exception ex)
@@ -226,29 +241,25 @@ namespace MCUBoot
         /// <param name="text">文本</param>
         private void AppendToReceivedText(string text)
         {
-            // 移除首尾的空白字符
             text = text.Trim();
-            // 如果文本不为空，则添加为新的一行
+
             if (!string.IsNullOrEmpty(text))
             {
-                if (_DisplayConfig.PauseShowReceived) return;
-
-                // 在现有内容后添加新行
-                if (_receivedTextBuilder.Length > 0)
+                comReceived.Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    _receivedTextBuilder.AppendLine(); // 添加换行符
-                }
+                    if (_receivedTextBuilder.Length > 0)
+                    {
+                        _receivedTextBuilder.AppendLine();
+                    }
 
-                _receivedTextBuilder.Append(text);
+                    _receivedTextBuilder.Append(text);
+                    comReceived.Text = _receivedTextBuilder.ToString();
 
-                comReceived.Text = _receivedTextBuilder.ToString();
-                
-                
-                //自动滚动
-                if (_DisplayConfig.AutoScroll)
-                {
-                    comReceived.ScrollToEnd();
-                }
+                    if (_DisplayConfig.AutoScroll)
+                    {
+                        comReceived.ScrollToEnd();
+                    }
+                }));
             }
         }
 
@@ -261,7 +272,9 @@ namespace MCUBoot
 
         private void BtnPauseShowReceived_Click(object sender, RoutedEventArgs e)
         {
+            _DisplayConfig.PauseShowReceived = !(_DisplayConfig.PauseShowReceived);
 
+            UpdatePauseShowRecvUI(_DisplayConfig.PauseShowReceived);
         }
 
         private void BtnSend_Click(object sender, RoutedEventArgs e)
@@ -287,28 +300,33 @@ namespace MCUBoot
 
         }
         
-        private void chkRecvAutoWrap_Checked(object sender, RoutedEventArgs e)
+        private void chkRecvAutoWrap_Changed(object sender, RoutedEventArgs e)
         {
-
+            _DisplayConfig.AutoWrap = chkRecvAutoWrap.IsChecked ?? false;
         }
-        private void chkAutoScroll_Checked(object sender, RoutedEventArgs e)
+        private void chkAutoScroll_Changed(object sender, RoutedEventArgs e)
         {
-
-        }
-
-        private void chkShowSend_Checked(object sender, RoutedEventArgs e)
-        {
-
+            _DisplayConfig.AutoScroll = chkAutoScroll.IsChecked ?? false;
         }
 
-        private void chkRecvShowRowNum_Checked(object sender, RoutedEventArgs e)
+        private void chkShowSend_Changed(object sender, RoutedEventArgs e)
         {
-
+            _DisplayConfig.ShowSend = chkShowSend.IsChecked ?? false;
         }
 
-        private void chkRecvShowTxRx_Checked(object sender, RoutedEventArgs e)
+        private void chkRecvShowRowNum_Changed(object sender, RoutedEventArgs e)
         {
+           _DisplayConfig.ShowRowNumbers=chkRecvShowRowNum.IsChecked ?? false;
+        }
 
+        private void chkRecvShowTxRx_Changed(object sender, RoutedEventArgs e)
+        {
+            _DisplayConfig.ShowTxRx = chkRecvShowTxRx.IsChecked ?? false;
+        }
+
+        private void chkEnableFrame_Changed(object sender, RoutedEventArgs e)
+        {
+            
         }
         #endregion
 
@@ -371,7 +389,7 @@ namespace MCUBoot
 
 
         #region 辅助工具
-        private async void SendData()
+        private void SendData()
         {
             if (!_serialPortService.IsOpen)
             {
@@ -387,27 +405,26 @@ namespace MCUBoot
                 //解码数据，将其变为字节流并添加帧头/帧尾
                 byte[] data = _dataProcessService.ProcessSendData(sendText, _DisplayConfig);
 
-                // 在后台线程执行串口写操作，避免 UI 卡死
-                await Task.Run(() => _serialPortService.SendData(data));
+                _serialPortService.SendData(data);
 
                 //显示发送
                 if (_DisplayConfig.ShowSend)
                 {
                     //发送区显示TX/RX
+                    //string displayText = _dataProcessService.EncodeData(data, _DisplayConfig.ReceiveEncoding);
                     string displayText = _dataProcessService.FormatWithTxRxPrefix(sendText, _DisplayConfig, false);
-                    // 使用 BeginInvoke 保证在 UI 线程更新
-                    Dispatcher.BeginInvoke(new System.Action(() => AppendToReceivedText(displayText)));
+                    AppendToReceivedText(displayText);
                 }
-                    
+                ////发送区显示TX/RX
+                ////string displayText = _dataProcessService.EncodeData(data, _DisplayConfig.ReceiveEncoding);
+                //string displayText = _dataProcessService.FormatWithTxRxPrefix(sendText, _DisplayConfig, false);
+                //AppendToReceivedText(displayText);
+
             }
             catch (Exception ex)
             {
-                // 在 UI 线程显示错误
-                Dispatcher.BeginInvoke(new System.Action(() =>
-                {
-                    MessageBox.Show($"发送失败: {ex.Message}", "错误",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }));
+                MessageBox.Show($"发送失败: {ex.Message}", "错误",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

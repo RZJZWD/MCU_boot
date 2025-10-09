@@ -91,11 +91,11 @@
                     
                     <GroupBox Header="杂项设置">
                         <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                            <CheckBox x:Name="chkRecvAutoWrap" Content="自动换行" IsChecked="True" Checked="chkRecvAutoWrap_Checked"/>
-                            <CheckBox x:Name="chkAutoScroll" Content="自动滚动" IsChecked="True" Checked="chkAutoScroll_Checked"/>
-                            <CheckBox x:Name="chkShowSend" Content="显示发送" IsChecked="True" Checked="chkShowSend_Checked" />
-                            <CheckBox x:Name="chkRecvShowRowNum" Content="显示行号" Checked="chkRecvShowRowNum_Checked"/>
-                            <CheckBox x:Name="chkRecvShowTxRx" Content="显示TX RX" Checked="chkRecvShowTxRx_Checked"/>
+                            <CheckBox x:Name="chkRecvAutoWrap" Content="自动换行" IsChecked="True" Checked="chkRecvAutoWrap_Changed" Unchecked="chkRecvAutoWrap_Changed"/>
+                            <CheckBox x:Name="chkAutoScroll" Content="自动滚动" IsChecked="True" Checked="chkAutoScroll_Changed" Unchecked="chkAutoScroll_Changed"/>
+                            <CheckBox x:Name="chkShowSend" Content="显示发送" IsChecked="True" Checked="chkShowSend_Changed" Unchecked="chkShowSend_Changed"/>
+                            <CheckBox x:Name="chkRecvShowRowNum" Content="显示行号" Checked="chkRecvShowRowNum_Changed" Unchecked="chkRecvShowRowNum_Changed"/>
+                            <CheckBox x:Name="chkRecvShowTxRx" Content="显示TX RX" Checked="chkRecvShowTxRx_Changed" Unchecked="chkRecvShowTxRx_Changed"/>
                         </StackPanel>
                     </GroupBox>
                     
@@ -124,7 +124,7 @@
                     </StackPanel>
 
                     <!--启用帧处理 如果设置了帧头帧尾-->
-                    <CheckBox x:Name="chkEnableFrame" Content="启用帧处理" Margin="10"/>
+                    <CheckBox x:Name="chkEnableFrame" Content="启用帧处理" Margin="10" Checked="chkEnableFrame_Changed"/>
                     
                     <!--保存接收区到txt文件-->
                     <GroupBox Header="接收区处理">
