@@ -52,7 +52,7 @@ namespace MCUBoot.DateModels
     public class FrameConfig
     {
         //启用帧处理
-        public bool Enabled { get; set; }
+        public bool Enabled { get; set; } = false;
         public string Header { get; set; } = "";
         public string Footer { get; set; } = "";
     }

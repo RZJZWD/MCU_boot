@@ -40,7 +40,8 @@ namespace MCUBoot
 
             //加载一次串口列表，用于串口连接后开启上位机的情况
             LoadAvailablePorts();
-
+            //设置帧配置
+            SetFrameConfig(_FrameConfig);
         }
 
 
@@ -62,8 +63,7 @@ namespace MCUBoot
         {
             _SerialPortConfig = new SerialPortConfig();
             _DisplayConfig = new DisplayConfig();
-            _FrameConfig = new FrameConfig();
-            
+            _FrameConfig = new FrameConfig();                
         }
 
         /// <summary>
@@ -158,7 +158,6 @@ namespace MCUBoot
                 string frameText = $"[帧数据] {e.DisplayText}\r\n";
                 AppendToReceivedText(frameText);
             }
-            
         }
 
         #endregion
@@ -326,7 +325,8 @@ namespace MCUBoot
 
         private void chkEnableFrame_Changed(object sender, RoutedEventArgs e)
         {
-            
+            _FrameConfig.Enabled = chkEnableFrame.IsChecked ?? false;
+            SetFrameConfig(_FrameConfig);
         }
         #endregion
 
@@ -387,7 +387,6 @@ namespace MCUBoot
 
         #endregion
 
-
         #region 辅助工具
         private void SendData()
         {
@@ -411,14 +410,15 @@ namespace MCUBoot
                 if (_DisplayConfig.ShowSend)
                 {
                     //发送区显示TX/RX
-                    //string displayText = _dataProcessService.EncodeData(data, _DisplayConfig.ReceiveEncoding);
-                    string displayText = _dataProcessService.FormatWithTxRxPrefix(sendText, _DisplayConfig, false);
+                    //string displayText = _dataProcessService.FormatWithTxRxPrefix(sendText, _DisplayConfig, false);
+                    //AppendToReceivedText(displayText);
+
+                    ////发送区显示TX/RX
+                    string displayText = _dataProcessService.EncodeData(data, _DisplayConfig.SendEncoding);
+                    displayText = _dataProcessService.FormatWithTxRxPrefix(sendText, _DisplayConfig, false);
                     AppendToReceivedText(displayText);
                 }
-                ////发送区显示TX/RX
-                ////string displayText = _dataProcessService.EncodeData(data, _DisplayConfig.ReceiveEncoding);
-                //string displayText = _dataProcessService.FormatWithTxRxPrefix(sendText, _DisplayConfig, false);
-                //AppendToReceivedText(displayText);
+                
 
             }
             catch (Exception ex)
@@ -442,6 +442,26 @@ namespace MCUBoot
                 cmbPortName.SelectedIndex = 0;
         }
 
+        private void SetFrameConfig(FrameConfig config)
+        {
+            if (config.Enabled)
+            {
+                FrameHeader.IsReadOnly = true;
+                FrameFooter.IsReadOnly = true;
+                config.Header = FrameHeader.Text;
+                config.Footer = FrameFooter.Text;
+                // 添加调试输出
+                AppendToReceivedText($"帧头：{config.Header} 帧尾：{config.Footer}");
+            }
+            else
+            {
+                
+                FrameHeader.IsReadOnly = false;
+                FrameFooter.IsReadOnly = false;
+                
+            }
+            _dataProcessService.SetFrameConfig(config);
+        }
         #endregion
 
 

@@ -124,7 +124,7 @@
                     </StackPanel>
 
                     <!--启用帧处理 如果设置了帧头帧尾-->
-                    <CheckBox x:Name="chkEnableFrame" Content="启用帧处理" Margin="10" Checked="chkEnableFrame_Changed"/>
+                    <CheckBox x:Name="chkEnableFrame" Content="启用帧处理" Margin="10" Checked="chkEnableFrame_Changed" Unchecked="chkEnableFrame_Changed"/>
                     
                     <!--保存接收区到txt文件-->
                     <GroupBox Header="接收区处理">
