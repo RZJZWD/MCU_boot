@@ -56,6 +56,11 @@ namespace MCUBoot.DateModels
         public string Header { get; set; } = "";
         public string Footer { get; set; } = "";
     }
+    public class AutoSendConfig
+    {
+        public bool Enabled { get; set; }= false;
+        public int Interval { get; set; } = 0;
+    }
 
     /// <summary>
     /// 编码类型枚举

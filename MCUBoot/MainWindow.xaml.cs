@@ -12,6 +12,7 @@ using System.IO.Ports;
 using MCUBoot.DateModels;
 using MCUBoot.Services;
 using System.Security.AccessControl;
+using System.CodeDom;
 namespace MCUBoot
 {
     /// <summary>
@@ -22,10 +23,15 @@ namespace MCUBoot
         //服务实例
         private SerialPortService _serialPortService;
         private DataProcessService _dataProcessService;
+        private AutoSendService _autoSendService;
+        private FileService _fileService;
+
         //配置实例
         private SerialPortConfig _SerialPortConfig;
         private DisplayConfig _DisplayConfig;
         private FrameConfig _FrameConfig;
+        private AutoSendConfig _AutoSendConfig;
+
         //UI状态
         private StringBuilder _receivedTextBuilder;
         public MainWindow()
@@ -42,6 +48,7 @@ namespace MCUBoot
             LoadAvailablePorts();
             //设置帧配置
             SetFrameConfig(_FrameConfig);
+            SetAutoSendConfig(_AutoSendConfig);
         }
 
 
@@ -52,6 +59,8 @@ namespace MCUBoot
         {
             _serialPortService = new SerialPortService();
             _dataProcessService = new DataProcessService();
+            _autoSendService = new AutoSendService();
+            _fileService = new FileService();
 
             _receivedTextBuilder = new StringBuilder();
         }
@@ -63,7 +72,8 @@ namespace MCUBoot
         {
             _SerialPortConfig = new SerialPortConfig();
             _DisplayConfig = new DisplayConfig();
-            _FrameConfig = new FrameConfig();                
+            _FrameConfig = new FrameConfig();  
+            _AutoSendConfig = new AutoSendConfig();
         }
 
         /// <summary>
@@ -82,7 +92,8 @@ namespace MCUBoot
             _dataProcessService.ReceivedFrameProcessed += OnReceivedFrameProcessed;
 
             //自动发送服务事件
-
+            _autoSendService.AutoSendTriggered += OnAutoSendTriggered;
+            _autoSendService.ErrorOccurred += OnAutoSendErrorProcessed;
         }
 
 
@@ -160,6 +171,30 @@ namespace MCUBoot
             }
         }
 
+
+        private void OnAutoSendTriggered(object sender,EventArgs e)
+        {
+            try
+            {
+                Dispatcher.Invoke(SendData);
+            }
+            catch (Exception ex)
+            {
+                RestoreAutoSend(1000);
+                MessageBox.Show($"自动发送错误 {ex.Message}", "提示", MessageBoxButton.OK, MessageBoxImage.Error);     
+            }
+
+        }
+
+        private void OnAutoSendErrorProcessed(object sender, string errorMessage)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                MessageBox.Show(errorMessage, "自动发送错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            });
+            RestoreAutoSend(1000);
+        }
+
         #endregion
 
 
@@ -204,6 +239,28 @@ namespace MCUBoot
             BtnPauseShowReceived.Content = isPaused ? "继续显示" : "暂停显示";
             BtnPauseShowReceived.Background = isPaused ? Brushes.Orange : Brushes.LightGreen;
             BtnPauseShowReceived.Foreground = isPaused ? Brushes.White : Brushes.Black;
+        }
+        /// <summary>
+        /// 跟新自动发送的UI
+        /// </summary>
+        /// <param name="config">自动发送设置</param>
+        private void UpdateAutoSendUI(AutoSendConfig config)
+        {
+            // 临时移除事件绑定
+            chkAutoSend.Checked -= chkAutoSend_Changed;
+            chkAutoSend.Unchecked -= chkAutoSend_Changed;
+
+            try
+            {
+                chkAutoSend.IsChecked = config.Enabled;
+                AutoSendInterval.Text = config.Interval.ToString();
+            }
+            finally
+            {
+                // 重新绑定事件
+                chkAutoSend.Checked += chkAutoSend_Changed;
+                chkAutoSend.Unchecked += chkAutoSend_Changed;
+            }
         }
 
         /// <summary>
@@ -278,7 +335,15 @@ namespace MCUBoot
 
         private void BtnSend_Click(object sender, RoutedEventArgs e)
         {
-            SendData();
+            try
+            {
+                SendData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送错误 {ex.Message}", "提示", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+
         }
 
         private void BtnClearSendArea_Click(object sender, RoutedEventArgs e)
@@ -297,8 +362,7 @@ namespace MCUBoot
             if (_DisplayConfig == null) return;
             _DisplayConfig.SendEncoding = GetSendEncodingTypeFromUI();
 
-        }
-        
+        }     
         private void chkRecvAutoWrap_Changed(object sender, RoutedEventArgs e)
         {
             _DisplayConfig.AutoWrap = chkRecvAutoWrap.IsChecked ?? false;
@@ -327,6 +391,29 @@ namespace MCUBoot
         {
             _FrameConfig.Enabled = chkEnableFrame.IsChecked ?? false;
             SetFrameConfig(_FrameConfig);
+            if (_FrameConfig.Enabled)
+            {
+                AppendToReceivedText($"帧头：{_FrameConfig.Header} 帧尾：{_FrameConfig.Footer}");
+            }
+            else
+            {
+                AppendToReceivedText("已关闭帧处理");
+            }
+        }
+        private void chkAutoSend_Changed(object sender, RoutedEventArgs e)
+        {
+            _AutoSendConfig.Enabled = chkAutoSend.IsChecked ?? false;
+            SetAutoSendConfig(_AutoSendConfig);
+            if (_AutoSendConfig.Enabled)
+            {
+                _autoSendService.Start(_AutoSendConfig);
+                AppendToReceivedText($"自动发送间隔为 {_AutoSendConfig.Interval}ms");
+            }
+            else
+            {
+                _autoSendService.Stop();
+                AppendToReceivedText("已关闭自动发送");
+            }
         }
         #endregion
 
@@ -392,8 +479,9 @@ namespace MCUBoot
         {
             if (!_serialPortService.IsOpen)
             {
-                MessageBox.Show("请先打开串口", "提示", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
+                throw new ArgumentException("请先打开串口");
+                //MessageBox.Show("请先打开串口", "提示", MessageBoxButton.OK, MessageBoxImage.Error);       
+                //return;
             }
 
             try
@@ -450,17 +538,44 @@ namespace MCUBoot
                 FrameFooter.IsReadOnly = true;
                 config.Header = FrameHeader.Text;
                 config.Footer = FrameFooter.Text;
-                // 添加调试输出
-                AppendToReceivedText($"帧头：{config.Header} 帧尾：{config.Footer}");
+                // 添加调试输出     
             }
             else
             {
-                
+  
                 FrameHeader.IsReadOnly = false;
-                FrameFooter.IsReadOnly = false;
-                
+                FrameFooter.IsReadOnly = false;           
             }
             _dataProcessService.SetFrameConfig(config);
+        }
+
+        private void SetAutoSendConfig(AutoSendConfig config)
+        {
+            if (config.Enabled)
+            {
+                //关闭间隔设置
+                AutoSendInterval.IsReadOnly = true;
+                //读取间隔
+                config.Interval = int.Parse(AutoSendInterval.Text);     
+            }
+            else
+            {
+                AutoSendInterval.IsReadOnly = false;
+                
+            }
+            _autoSendService.SetAutoSendConfig(config);
+        }
+        /// <summary>
+        /// 还原自动发送的设置与UI
+        /// </summary>
+        /// <param name="interval">发送间隔</param>
+        private void RestoreAutoSend(int interval)
+        {
+            AutoSendConfig config = new AutoSendConfig();
+            config.Enabled = false;
+            config.Interval = interval;
+            SetAutoSendConfig(config);
+            UpdateAutoSendUI(config);
         }
         #endregion
 
