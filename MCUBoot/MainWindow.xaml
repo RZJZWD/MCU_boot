@@ -25,7 +25,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="auto"/>
                 <ColumnDefinition Width="3*"/>
-                <ColumnDefinition Width="auto"/>
+                <ColumnDefinition Width="1*"/>
             </Grid.ColumnDefinitions>
             
             <!--左串口设置区域-->
@@ -130,8 +130,8 @@
                     <GroupBox Header="接收区处理">
                         <StackPanel Orientation="Vertical">
                             <StackPanel Orientation="Horizontal">
-                                <Button x:Name="BtnSaveRece2File" Content="保存为文件" Margin="0,2,2,2" />
-                                <Button x:Name="BtnBrowseFilePath" Content="浏览文件" Margin="10,2,2,2"/>
+                                <Button x:Name="BtnSaveRece2File" Content="保存为文件" Margin="0,2,2,2" Click="BtnSaveRece2File_Click" />
+                                <Button x:Name="BtnBrowseFilePath" Content="浏览文件" Margin="10,2,2,2" Click="BtnBrowseFilePath_Click"/>
                             </StackPanel>
                             <!--显示文件路径-->
                             <TextBox x:Name="FilePathTextBox" IsReadOnly="True" Margin="5"/>

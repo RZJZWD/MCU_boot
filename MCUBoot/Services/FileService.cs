@@ -1,11 +1,12 @@
-﻿using System;
-using System.IO;
-using System.Windows;
+﻿using MCUBoot.DateModels;
+using Microsoft.Win32;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Win32;
+using System.Windows;
 
 namespace MCUBoot.Services
 {   
@@ -14,17 +15,25 @@ namespace MCUBoot.Services
     /// </summary>
     public class FileService
     {
+
+        private FileConfig _fileConfig;
+
+        public void SetFileConfig(FileConfig config)
+        {
+            if (config == null) return;
+            _fileConfig = config;
+        }
         /// <summary>
         /// 选择保存文件路径
         /// </summary>
         /// <param name="defaultFileName">默认文件名</param>
         /// <returns></returns>
-        public string SelectSaveFilePath(string defaultFileName = "serial_data.txt")
+        public string SelectSaveFilePath(FileConfig config)
         {
             var saveFileDialog = new Microsoft.Win32.SaveFileDialog
             {
                 Filter = "文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*",
-                FileName = defaultFileName
+                FileName = config.FileName
             };
 
             return saveFileDialog.ShowDialog() == true ? saveFileDialog.FileName : null;
@@ -35,11 +44,20 @@ namespace MCUBoot.Services
         /// <param name="text">文本</param>
         /// <param name="filePath">文件路径</param>
         /// <returns></returns>
-        public bool SaveText2File(string text, string filePath)
+        public bool SaveText2File(string text, FileConfig config)
         {
             try
             {
-                File.WriteAllText(filePath, text);
+                string fullPath = Path.Combine(config.FilePath, config.FileName);
+
+                // 确保目录存在
+                string directory = Path.GetDirectoryName(fullPath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                File.WriteAllText(fullPath, text);
                 return true;
             }
             catch (Exception ex)
@@ -54,11 +72,11 @@ namespace MCUBoot.Services
         /// </summary>
         /// <param name="filePath">文件路径</param>
         /// <returns>文本</returns>
-        public string ReadTextFromFile(string filePath)
+        public string ReadTextFromFile(FileConfig config)
         {
             try
             {
-                return File.ReadAllText(filePath);
+                return File.ReadAllText(config.FilePath);
             }
             catch (Exception ex)
             {

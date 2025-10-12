@@ -1,4 +1,11 @@
-﻿using System.Text;
+﻿using MCUBoot.DateModels;
+using MCUBoot.Services;
+using System.CodeDom;
+using System.IO;
+using System.IO.Ports;
+using System.Security.AccessControl;
+using System.Security.Policy;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -8,11 +15,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-using System.IO.Ports;
-using MCUBoot.DateModels;
-using MCUBoot.Services;
-using System.Security.AccessControl;
-using System.CodeDom;
 namespace MCUBoot
 {
     /// <summary>
@@ -31,7 +33,7 @@ namespace MCUBoot
         private DisplayConfig _DisplayConfig;
         private FrameConfig _FrameConfig;
         private AutoSendConfig _AutoSendConfig;
-
+        private FileConfig _FileConfig;
         //UI状态
         private StringBuilder _receivedTextBuilder;
         public MainWindow()
@@ -49,6 +51,7 @@ namespace MCUBoot
             //设置帧配置
             SetFrameConfig(_FrameConfig);
             SetAutoSendConfig(_AutoSendConfig);
+            SetFileConfig(_FileConfig);
         }
 
 
@@ -74,6 +77,7 @@ namespace MCUBoot
             _DisplayConfig = new DisplayConfig();
             _FrameConfig = new FrameConfig();  
             _AutoSendConfig = new AutoSendConfig();
+            _FileConfig = new FileConfig();
         }
 
         /// <summary>
@@ -262,6 +266,10 @@ namespace MCUBoot
                 chkAutoSend.Unchecked += chkAutoSend_Changed;
             }
         }
+        private void UpdateFileSavePathUI(FileConfig config)
+        {
+            FilePathTextBox.Text = config.FilePath;
+        }
 
         /// <summary>
         /// 串口开关按钮点击事件
@@ -415,6 +423,58 @@ namespace MCUBoot
                 AppendToReceivedText("已关闭自动发送");
             }
         }
+
+        private void BtnSaveRece2File_Click(object sender, RoutedEventArgs e)
+        {
+            //获取文件路径
+            string filePath = _FileConfig.FilePath;
+            // 验证文件路径
+            if (!string.IsNullOrEmpty(filePath))
+            {
+                bool saveSuccess = _fileService.SaveText2File(comReceived.Text, _FileConfig);
+
+                if (saveSuccess)
+                {
+                    MessageBox.Show("保存成功", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            else
+            {
+                MessageBox.Show("请先选择或输入有效的文件路径！", "警告",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+                
+        }
+
+        private void BtnBrowseFilePath_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {   
+                //获取所选的文件路径
+                string filePath = _fileService.SelectSaveFilePath(_FileConfig);
+
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    _FileConfig.FilePath = System.IO.Path.GetDirectoryName(filePath);
+                    _FileConfig.FileName = System.IO.Path.GetFileName(filePath);
+                    UpdateFileSavePathUI(_FileConfig);
+                    AppendToReceivedText($"文件保存路径：{filePath}\n");
+                }
+                else
+                {
+                    //取消选择，还原为程序路径
+                    _FileConfig.FilePath = GetAppDir();
+                    _FileConfig.FileName = "serial_data.txt";
+                    UpdateFileSavePathUI(_FileConfig);
+                    AppendToReceivedText($"取消选择，文件保存路径：{filePath}\n");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"选择文件路径时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
         #endregion
 
         #region 从前端获取数据
@@ -565,6 +625,32 @@ namespace MCUBoot
             }
             _autoSendService.SetAutoSendConfig(config);
         }
+
+        private void SetFileConfig(FileConfig config)
+        {
+            config.FilePath = GetAppDir();
+            _fileService.SetFileConfig(config);
+            UpdateFileSavePathUI(config);
+        }
+
+        private string GetAppDir()
+        {
+            try
+            {
+                //获取当前程序运行的完整路径，包含程序名 xxx.exe
+                string appPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                //提取完整路径的文件夹路径
+                string appDir = System.IO.Path.GetDirectoryName(appPath);
+
+                return appDir;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"获取程序路径失败: {ex.Message}", "错误",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return string.Empty;
+            }
+        }
         /// <summary>
         /// 还原自动发送的设置与UI
         /// </summary>
@@ -590,6 +676,6 @@ namespace MCUBoot
             base.OnClosed(e);
         }
 
-        
+
     }
 }

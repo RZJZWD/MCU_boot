@@ -62,6 +62,12 @@ namespace MCUBoot.DateModels
         public int Interval { get; set; } = 0;
     }
 
+    public class FileConfig
+    {
+        public string FileName { get; set; } = "serial_data.txt";
+        public string FilePath { get; set; } = "";
+    }
+
     /// <summary>
     /// 编码类型枚举
     /// </summary>
