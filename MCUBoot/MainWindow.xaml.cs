@@ -1,6 +1,7 @@
 ﻿using MCUBoot.DateModels;
 using MCUBoot.Services;
 using System.CodeDom;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Ports;
 using System.Security.AccessControl;
@@ -41,8 +42,10 @@ namespace MCUBoot
             // 在程序启动时注册GB2312编码，只需一次
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-            InitConfig();
+            
             InitializeComponent();
+            InitConfig();
+            InitUI();
             InitServices();
             InitEventHandlers();
 
@@ -99,7 +102,17 @@ namespace MCUBoot
             _autoSendService.AutoSendTriggered += OnAutoSendTriggered;
             _autoSendService.ErrorOccurred += OnAutoSendErrorProcessed;
         }
-
+        /// <summary>
+        /// 根据各服务的配置更新UI
+        /// </summary>
+        private void InitUI()
+        {
+            chkRecvAutoWrap.IsChecked = _DisplayConfig.AutoWrap;
+            chkAutoScroll.IsChecked = _DisplayConfig.AutoWrap;
+            chkShowSend.IsChecked = _DisplayConfig.ShowSend;
+            chkEnableDTR.IsChecked = _SerialPortConfig.EnableDTR;
+            _DisplayConfig.LineEnding = GetLineEndingFromUI();
+        }
 
 
         #region 事件处理方法
@@ -128,7 +141,7 @@ namespace MCUBoot
         /// <summary>
         /// 串口数据接收处理
         /// </summary>
-        private void OnDataReceived(object sender, DataReceivedEventArgs e)
+        private void OnDataReceived(object sender, MCUBoot.Services.DataReceivedEventArgs e)
         {
             Dispatcher.Invoke(() =>
             {
@@ -270,7 +283,6 @@ namespace MCUBoot
         {
             FilePathTextBox.Text = config.FilePath;
         }
-
         /// <summary>
         /// 串口开关按钮点击事件
         /// </summary>
@@ -370,7 +382,30 @@ namespace MCUBoot
             if (_DisplayConfig == null) return;
             _DisplayConfig.SendEncoding = GetSendEncodingTypeFromUI();
 
-        }     
+            if (!string.IsNullOrEmpty(comSend.Text))
+            {
+                try
+                {
+                    byte[] data = _dataProcessService.ProcessSendData(comSend.Text, _DisplayConfig);
+                    string displayText = _dataProcessService.EncodeData(data, _DisplayConfig.SendEncoding);
+                    comSend.Text = displayText;
+                }
+                catch (ArgumentException ex)
+                {
+                    // 专门处理数据格式错误
+                    MessageBox.Show($"数据格式错误: {ex.Message}", "格式错误",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                }  
+            }
+            
+
+        }
+        private void cmbLineEnding_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_DisplayConfig == null) return;
+            _DisplayConfig.LineEnding = GetLineEndingFromUI();
+        }
+
         private void chkRecvAutoWrap_Changed(object sender, RoutedEventArgs e)
         {
             _DisplayConfig.AutoWrap = chkRecvAutoWrap.IsChecked ?? false;
@@ -428,10 +463,12 @@ namespace MCUBoot
         {
             //获取文件路径
             string filePath = _FileConfig.FilePath;
+            string data = _receivedTextBuilder.ToString();
+            
             // 验证文件路径
             if (!string.IsNullOrEmpty(filePath))
             {
-                bool saveSuccess = _fileService.SaveText2File(comReceived.Text, _FileConfig);
+                bool saveSuccess = _fileService.SaveText2File(data, _FileConfig);
 
                 if (saveSuccess)
                 {
@@ -532,6 +569,24 @@ namespace MCUBoot
             };
         }
 
+        private string GetLineEndingFromUI()
+        {
+            if (cmbLineEnding.SelectedItem is ComboBoxItem selectedItem)
+            {
+                string lineEnding = selectedItem.Tag?.ToString() ?? "";
+                lineEnding = ConvertDisplayToActual(lineEnding);
+
+                //// 调试查看实际内容
+                //Debug.WriteLine($"LineEnding length: {lineEnding.Length}");
+                //foreach (char c in lineEnding)
+                //{
+                //    Debug.WriteLine($"Char: {(int)c} ('{c}')");
+                //}
+
+                return lineEnding;
+            }
+            return "";
+        }
         #endregion
 
         #region 辅助工具
@@ -546,28 +601,35 @@ namespace MCUBoot
 
             try
             {
+                //从发送文本框获取数据
                 string sendText = comSend.Text;
                 if (string.IsNullOrEmpty(sendText)) return;
 
                 //解码数据，将其变为字节流并添加帧头/帧尾
                 byte[] data = _dataProcessService.ProcessSendData(sendText, _DisplayConfig);
 
+
                 _serialPortService.SendData(data);
 
                 //显示发送
-                if (_DisplayConfig.ShowSend)
+                if (_DisplayConfig.ShowSend && !_DisplayConfig.PauseShowReceived)
                 {
                     //发送区显示TX/RX
                     //string displayText = _dataProcessService.FormatWithTxRxPrefix(sendText, _DisplayConfig, false);
                     //AppendToReceivedText(displayText);
 
-                    ////发送区显示TX/RX
+                    //将显示的数据按照发送编码形式编码为字符串
                     string displayText = _dataProcessService.EncodeData(data, _DisplayConfig.SendEncoding);
+                    //发送区显示TX/RX
                     displayText = _dataProcessService.FormatWithTxRxPrefix(sendText, _DisplayConfig, false);
                     AppendToReceivedText(displayText);
                 }
-                
-
+            }
+            catch (ArgumentException ex)
+            {
+                // 专门处理数据格式错误
+                MessageBox.Show($"数据格式错误: {ex.Message}", "格式错误",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             catch (Exception ex)
             {
@@ -662,6 +724,22 @@ namespace MCUBoot
             config.Interval = interval;
             SetAutoSendConfig(config);
             UpdateAutoSendUI(config);
+            _autoSendService.Stop();
+        }
+
+        /// <summary>
+        /// 将显示的换行符文本转换为实际的控制字符
+        /// </summary>
+        private string ConvertDisplayToActual(string displayText)
+        {
+            if (string.IsNullOrEmpty(displayText))
+                return "";
+
+            // 将显示的 "\r\n" 等转换为实际的控制字符
+            return displayText
+                .Replace("\\r", "\r")
+                .Replace("\\n", "\n")
+                .Replace("\\t", "\t");
         }
         #endregion
 

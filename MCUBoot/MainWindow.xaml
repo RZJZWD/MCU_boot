@@ -79,7 +79,7 @@
                     </StackPanel>
                     
                     <!--使能DTR-->
-                    <CheckBox x:Name="chkEnableDTR" Content="DTR" Margin="20,2,2,2" IsChecked="True"/>
+                    <CheckBox x:Name="chkEnableDTR" Content="DTR" Margin="20,2,2,2" />
                     
                     <!--开启/关闭串口-->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -91,9 +91,9 @@
                     
                     <GroupBox Header="杂项设置">
                         <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                            <CheckBox x:Name="chkRecvAutoWrap" Content="自动换行" IsChecked="True" Checked="chkRecvAutoWrap_Changed" Unchecked="chkRecvAutoWrap_Changed"/>
-                            <CheckBox x:Name="chkAutoScroll" Content="自动滚动" IsChecked="True" Checked="chkAutoScroll_Changed" Unchecked="chkAutoScroll_Changed"/>
-                            <CheckBox x:Name="chkShowSend" Content="显示发送" IsChecked="True" Checked="chkShowSend_Changed" Unchecked="chkShowSend_Changed"/>
+                            <CheckBox x:Name="chkRecvAutoWrap" Content="自动换行"  Checked="chkRecvAutoWrap_Changed" Unchecked="chkRecvAutoWrap_Changed"/>
+                            <CheckBox x:Name="chkAutoScroll" Content="自动滚动"  Checked="chkAutoScroll_Changed" Unchecked="chkAutoScroll_Changed"/>
+                            <CheckBox x:Name="chkShowSend" Content="显示发送"  Checked="chkShowSend_Changed" Unchecked="chkShowSend_Changed"/>
                             <CheckBox x:Name="chkRecvShowRowNum" Content="显示行号" Checked="chkRecvShowRowNum_Changed" Unchecked="chkRecvShowRowNum_Changed"/>
                             <CheckBox x:Name="chkRecvShowTxRx" Content="显示TX RX" Checked="chkRecvShowTxRx_Changed" Unchecked="chkRecvShowTxRx_Changed"/>
                         </StackPanel>
@@ -110,7 +110,8 @@
                              VerticalScrollBarVisibility="Visible" 
                              TextWrapping="Wrap" 
                              AcceptsReturn="True" 
-                             FontFamily="Consolas"/>
+                             FontFamily="Consolas"
+                             Background="#FFF5F5F5"/>
                 </Grid>
             </GroupBox>
         
@@ -119,7 +120,7 @@
                 <StackPanel Orientation="Vertical">
                     <!--接收区设置-->
                     <StackPanel Orientation="Horizontal"  >
-                        <Button x:Name="BtnClearReceivedArea" Content="清空" Margin="20,2,2,2" HorizontalAlignment="Left" Click="BtnClearReceivedArea_Click"/>
+                        <Button x:Name="BtnClearReceivedArea" Content="清空接收区" Margin="10,2,2,2" HorizontalAlignment="Left" Click="BtnClearReceivedArea_Click"/>
                         <Button x:Name="BtnPauseShowReceived" Content="暂停显示" Margin="20,2,2,2" HorizontalAlignment="Right" Click="BtnPauseShowReceived_Click"/>
                     </StackPanel>
 
@@ -177,9 +178,9 @@
                              IsReadOnly="False" 
                              VerticalScrollBarVisibility="Visible" 
                              HorizontalScrollBarVisibility="Visible" 
-                             TextWrapping="Wrap" 
                              AcceptsReturn="True" 
-                             FontFamily="Consolas"/>
+                             FontFamily="Consolas"
+                             Background="#FFF5F5F5"/>
                 </Grid>
             </GroupBox>
 
@@ -232,11 +233,19 @@
                                 <ComboBoxItem Content="八进制 OCT"/>
                                 <ComboBoxItem Content="二进制 BIN"/>
                             </ComboBox>
-                            <!--自动同步收发数据的编解码格式设置-->
-                            <CheckBox x:Name="chkDecodeisEncode" Margin="10,2,0,2" Content="同步到显示解码"/>
                         </StackPanel>
                     </GroupBox>
-
+                    
+                    <StackPanel Orientation="Horizontal">
+                        <Label Content="行尾"/>
+                        <ComboBox x:Name="cmbLineEnding" Width="100" VerticalAlignment="Center" SelectionChanged="cmbLineEnding_SelectionChanged">
+                            <ComboBoxItem Content="无行尾" Tag=""/>
+                            <ComboBoxItem Content="CR (\r)" Tag="\r"/>
+                            <ComboBoxItem Content="LF (\n)" Tag="\n" IsSelected="True"/>
+                            <ComboBoxItem Content="CRLF (\r\n)" Tag="\r\n" />
+                        </ComboBox>
+                    </StackPanel>
+                    
                 </StackPanel>
             </GroupBox>
         </Grid>
