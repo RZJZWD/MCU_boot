@@ -16,6 +16,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Xml.Serialization;
 namespace MCUBoot
 {
     /// <summary>
@@ -28,6 +29,7 @@ namespace MCUBoot
         private DataProcessService _dataProcessService;
         private AutoSendService _autoSendService;
         private FileService _fileService;
+        private BootService _bootService;
 
         //配置实例
         private SerialPortConfig _SerialPortConfig;
@@ -35,14 +37,18 @@ namespace MCUBoot
         private FrameConfig _FrameConfig;
         private AutoSendConfig _AutoSendConfig;
         private FileConfig _FileConfig;
+        private BootConfig _BootConfig;
+        private OperatModeConfig _OperatModeConfig;//上位机模式
+
         //UI状态
         private StringBuilder _receivedTextBuilder;
+        
+        
         public MainWindow()
         {
             // 在程序启动时注册GB2312编码，只需一次
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-            
             InitializeComponent();
             InitConfig();
             InitUI();
@@ -55,6 +61,7 @@ namespace MCUBoot
             SetFrameConfig(_FrameConfig);
             SetAutoSendConfig(_AutoSendConfig);
             SetFileConfig(_FileConfig);
+            SetBootconfig(_BootConfig);
         }
 
 
@@ -67,6 +74,7 @@ namespace MCUBoot
             _dataProcessService = new DataProcessService();
             _autoSendService = new AutoSendService();
             _fileService = new FileService();
+            _bootService = new BootService();
 
             _receivedTextBuilder = new StringBuilder();
         }
@@ -77,10 +85,19 @@ namespace MCUBoot
         private void InitConfig()
         {
             _SerialPortConfig = new SerialPortConfig();
+
             _DisplayConfig = new DisplayConfig();
+            _DisplayConfig.LineEnding = GetLineEndingFromUI();
+
             _FrameConfig = new FrameConfig();  
+
             _AutoSendConfig = new AutoSendConfig();
+
             _FileConfig = new FileConfig();
+
+            _BootConfig = new BootConfig();
+
+            _OperatModeConfig = new OperatModeConfig();
         }
 
         /// <summary>
@@ -101,6 +118,11 @@ namespace MCUBoot
             //自动发送服务事件
             _autoSendService.AutoSendTriggered += OnAutoSendTriggered;
             _autoSendService.ErrorOccurred += OnAutoSendErrorProcessed;
+
+            //boot服务事件
+            _bootService.LogMessage += OnBootLogMessage;
+            _bootService.ErrorOccurred += OnBootErrorOccurred;
+            _bootService.FirmwareLoaded += OnFirmwareLoaded;
         }
         /// <summary>
         /// 根据各服务的配置更新UI
@@ -111,7 +133,9 @@ namespace MCUBoot
             chkAutoScroll.IsChecked = _DisplayConfig.AutoWrap;
             chkShowSend.IsChecked = _DisplayConfig.ShowSend;
             chkEnableDTR.IsChecked = _SerialPortConfig.EnableDTR;
-            _DisplayConfig.LineEnding = GetLineEndingFromUI();
+            
+            rbSerialMode.IsChecked = _OperatModeConfig.Mode == OperatingMode.Serial;
+            UpdateModeUI(_OperatModeConfig);
         }
 
 
@@ -188,7 +212,11 @@ namespace MCUBoot
             }
         }
 
-
+        /// <summary>
+        /// 当自动发送定时器触发时
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void OnAutoSendTriggered(object sender,EventArgs e)
         {
             try
@@ -202,7 +230,11 @@ namespace MCUBoot
             }
 
         }
-
+        /// <summary>
+        /// 定时发送错误处理
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="errorMessage"></param>
         private void OnAutoSendErrorProcessed(object sender, string errorMessage)
         {
             Dispatcher.Invoke(() =>
@@ -211,6 +243,61 @@ namespace MCUBoot
             });
             RestoreAutoSend(1000);
         }
+
+        private void OnBootLogMessage(object sender, string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                AppendToReceivedText($"[Boot] {message}");
+            });
+        }
+
+        private void OnBootErrorOccurred(object sender, string errorMessage)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                AppendToReceivedText($"[Boot错误] {errorMessage}");
+                MessageBox.Show(errorMessage, "Boot操作错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            });
+        }
+
+        private void OnFirmwareLoaded(object sender, FirmwareInfo firmwareInfo)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                UpdateFirmwareUI(firmwareInfo);
+            });
+        }
+        private void OnBootProgressChanged(object sender, int progress)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                progressBoot.Value = progress;
+            });
+        }
+
+        private void OnBootStatusChanged(object sender, BootStatus status)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                lblBootStatus.Content = status switch
+                {
+                    BootStatus.Disconnected => "未连接",
+                    BootStatus.Connected => "已连接",
+                    BootStatus.InBootMode => "Boot模式",
+                    BootStatus.Uploading => "上传中",
+                    BootStatus.Verifying => "校验中",
+                    BootStatus.Completed => "完成",
+                    BootStatus.Error => "错误",
+                    _ => "未知状态"
+                };
+
+                // 根据状态显示或隐藏进度条
+                progressBoot.Visibility = (status == BootStatus.Uploading || status == BootStatus.Verifying)
+                    ? Visibility.Visible : Visibility.Collapsed;
+            });
+        }
+
 
         #endregion
 
@@ -282,6 +369,88 @@ namespace MCUBoot
         private void UpdateFileSavePathUI(FileConfig config)
         {
             FilePathTextBox.Text = config.FilePath;
+        }
+
+        /// <summary>
+        /// 根据模式更新UI状态
+        /// </summary>
+        private void UpdateModeUI(OperatModeConfig config)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                switch (config.Mode)
+                {
+                    case OperatingMode.Serial:
+                        // 串口模式：启用串口发送功能，禁用Boot设置
+                        gbSerialSend.IsEnabled = true;
+                        gbSendSettings.IsEnabled = true;
+                        gbBootMode.IsEnabled = false;
+
+                        // 更新视觉提示
+                        gbSerialSend.BorderBrush = Brushes.Green;
+                        gbSendSettings.BorderBrush = Brushes.Green;
+                        gbBootMode.BorderBrush = Brushes.Gray;
+                        break;
+
+                    case OperatingMode.Boot:
+                        // Boot模式：禁用串口发送功能，启用Boot设置
+                        gbSerialSend.IsEnabled = false;
+                        gbSendSettings.IsEnabled = false;
+                        gbBootMode.IsEnabled = true;
+
+                        // 更新视觉提示
+                        gbSerialSend.BorderBrush = Brushes.Gray;
+                        gbSendSettings.BorderBrush = Brushes.Gray;
+                        gbBootMode.BorderBrush = Brushes.Green;
+                        break;
+                }
+
+                // 更新模式指示器的背景色
+                rbSerialMode.Background = config.Mode == OperatingMode.Serial ? Brushes.LightGreen : Brushes.Transparent;
+                rbBootMode.Background = config.Mode == OperatingMode.Boot ? Brushes.LightGreen : Brushes.Transparent;
+            });
+        }
+        private void UpdateFirmwareUI(FirmwareInfo firmwareInfo)
+        {
+            try
+            {
+                // 更新基本信息
+                txtFirmwareFile.Text = firmwareInfo.FileName;
+
+                //// 在接收区显示详细信息
+                //AppendToReceivedText($"[Boot] 固件信息: {firmwareInfo.FileName}");
+                //AppendToReceivedText($"[Boot] 文件大小: {FormatFileSize(firmwareInfo.FileSize)}");
+                //AppendToReceivedText($"[Boot] 整体CRC32: {CRC32Utility.FormatCRC32(firmwareInfo.WholeFileCRC)}");
+                //AppendToReceivedText($"[Boot] 分包数量: {firmwareInfo.PacketCRCs.Count} 包");
+
+                // 启用相关按钮
+                btnUploadFirmware.IsEnabled = true;
+                btnVerifyFirmware.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                AppendToReceivedText($"[Boot错误] 更新固件UI失败: {ex.Message}");
+            }
+        }
+
+        private void rbSerialMode_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_OperatModeConfig.Mode != OperatingMode.Serial)
+            {
+                _OperatModeConfig.Mode = OperatingMode.Serial;
+                UpdateModeUI(_OperatModeConfig);
+                AppendToReceivedText("切换到串口模式");
+            }
+        }
+
+        private void rbBootMode_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_OperatModeConfig.Mode != OperatingMode.Boot)
+            {
+                _OperatModeConfig.Mode = OperatingMode.Boot;
+                UpdateModeUI(_OperatModeConfig);
+                AppendToReceivedText("切换到Boot模式");
+            }
         }
         /// <summary>
         /// 串口开关按钮点击事件
@@ -504,12 +673,43 @@ namespace MCUBoot
                     _FileConfig.FilePath = GetAppDir();
                     _FileConfig.FileName = "serial_data.txt";
                     UpdateFileSavePathUI(_FileConfig);
-                    AppendToReceivedText($"取消选择，文件保存路径：{filePath}\n");
+                    AppendToReceivedText($"取消选择\n");
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"选择文件路径时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void btnBrowseFirmware_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var openFileDialog = new Microsoft.Win32.OpenFileDialog
+                {
+                    Filter = "固件文件 (*.bin;*.hex;*.fw;*.elf)|*.bin;*.hex;*.fw;*.elf|所有文件 (*.*)|*.*",
+                    Title = "选择固件文件",
+                    Multiselect = false
+                };
+
+                if (openFileDialog.ShowDialog() == true)
+                {
+                    string filePath = openFileDialog.FileName;
+
+                    // 设置Boot配置
+                    _bootService.SetBootConfig(_BootConfig);
+
+                    // 加载固件（使用默认分包大小256）
+                    if (_bootService.LoadFirmware(filePath,_BootConfig.Transfer.PacketSize))
+                    {
+                        txtFirmwareFile.Text = System.IO.Path.GetFileName(filePath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"选择固件文件失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         #endregion
@@ -695,6 +895,12 @@ namespace MCUBoot
             UpdateFileSavePathUI(config);
         }
 
+        private void SetBootconfig(BootConfig config)
+        {
+            config.Transfer.PacketSize = 1024;
+            _bootService.SetBootConfig(config);
+        }
+
         private string GetAppDir()
         {
             try
@@ -741,6 +947,24 @@ namespace MCUBoot
                 .Replace("\\n", "\n")
                 .Replace("\\t", "\t");
         }
+
+        /// <summary>
+        /// 格式化文件大小
+        /// </summary>
+        private string FormatFileSize(long bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB" };
+            int order = 0;
+            double size = bytes;
+
+            while (size >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                size = size / 1024;
+            }
+
+            return $"{size:0.##} {sizes[order]}";
+        }
         #endregion
 
 
@@ -750,10 +974,10 @@ namespace MCUBoot
         protected override void OnClosed(EventArgs e)
         {
             _serialPortService?.Dispose();
-            //_autoSendService?.Stop();
+            _autoSendService?.Stop();
             base.OnClosed(e);
         }
 
-
+        
     }
 }
