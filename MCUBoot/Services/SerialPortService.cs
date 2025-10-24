@@ -125,6 +125,10 @@ namespace MCUBoot.Services
         /// </summary>
         private void ConfigureSerialPort(SerialPortConfig config)
         {
+            if (!string.IsNullOrEmpty(config.NewLine))
+            {
+                _serialPort.NewLine = config.NewLine;
+            }
             _serialPort.PortName = config.PortName;
             _serialPort.BaudRate = config.BaudRate;
             _serialPort.DataBits = config.DataBits;
@@ -193,6 +197,23 @@ namespace MCUBoot.Services
                 throw;
             }
         }
+        public void WriteLine(string data)
+        {
+            if (!_serialPort.IsOpen)
+            {
+                throw new InvalidOperationException("串口未打开");
+            }
+            try
+            {
+                _serialPort.WriteLine(data);
+            }
+            catch (Exception ex)
+            {
+                ErrorOccurred?.Invoke(this, $"发送数据失败：{ex.Message}");
+                throw;
+            }
+        }
+
 
 
         /// <summary>

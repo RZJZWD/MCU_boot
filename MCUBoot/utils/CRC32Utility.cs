@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MCUBoot.Services
+namespace MCUBoot.utils
 {
     /// <summary>
     /// CRC32计算工具类（以太网标准多项式：0x4C11DB7）

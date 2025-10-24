@@ -40,14 +40,17 @@ namespace MCUBoot.Services
         /// </summary>
         public void ProcessReceivedData(byte[] data, DisplayConfig displayConfig)
         {
-            //是否开启帧处理
-            if (_frameConfig?.Enabled == true)
+            if (data.Length > 0)
             {
-                ProcessReceiveDataWithFrame(data, displayConfig);
-            }
-            else
-            {
-                ProcessReceiveDataDirect(data, displayConfig);
+                //是否开启帧处理
+                if (_frameConfig?.Enabled == true)
+                {
+                    ProcessReceiveDataWithFrame(data, displayConfig);
+                }
+                else
+                {
+                    ProcessReceiveDataDirect(data, displayConfig);
+                }
             }
         }
         #region 处理接收数据
@@ -107,7 +110,7 @@ namespace MCUBoot.Services
         public byte[] ProcessSendData(string sendText, DisplayConfig displayConfig)
         {
             byte[] data=DecodeData(sendText,displayConfig.SendEncoding);
-            byte[] ret;
+            byte[] ret = data;
             if (_frameConfig?.Enabled == true)
             {
                 byte[] frameHeader = ParseHexString(_frameConfig.Header);
@@ -120,15 +123,12 @@ namespace MCUBoot.Services
                 ret =  frameData;
             }
             else
-            {
-                ret =  data;
-            }
-
-            if (!string.IsNullOrEmpty(displayConfig.LineEnding))
-            { 
-                ret = AppendLineEnding(ret, displayConfig.LineEnding);
-            }
-
+            {//添加尾行
+                if (!string.IsNullOrEmpty(displayConfig.LineEnding))
+                { 
+                    ret = AppendLineEnding(ret, displayConfig.LineEnding);
+                }
+            } 
             return ret;
         }
 

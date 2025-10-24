@@ -30,6 +30,7 @@ namespace MCUBoot.DateModels
         public bool IsOpen { get; set; }
         //是否使能DTR
         public bool EnableDTR { get; set; } = true;
+        public string NewLine = "";
     }
 
     /// <summary>
@@ -37,16 +38,41 @@ namespace MCUBoot.DateModels
     /// </summary>
     public class DisplayConfig
     {
+        /// <summary>
+        /// 自动换行
+        /// </summary>
         public bool AutoWrap { get; set; } = true;
+        /// <summary>
+        /// 自动滚动
+        /// </summary>
         public bool AutoScroll { get; set; } = true;
+        /// <summary>
+        /// 显示发送
+        /// </summary>
         public bool ShowSend { get; set; } = true;
+        /// <summary>
+        /// 显示行号
+        /// </summary>
         public bool ShowRowNumbers { get; set; }
+        /// <summary>
+        /// 显示发送/接收方
+        /// </summary>
         public bool ShowTxRx { get; set; }
+        /// <summary>
+        /// 接收解码
+        /// </summary>
         public EncodingType ReceiveEncoding { get; set; } = EncodingType.UTF8;
+        /// <summary>
+        /// 发送编码
+        /// </summary>
         public EncodingType SendEncoding { get; set; } = EncodingType.UTF8;
-        //暂停显示接收
+        /// <summary>
+        /// 暂停显示接收
+        /// </summary>
         public bool PauseShowReceived { get; set; } = false;
-
+        /// <summary>
+        /// 尾行
+        /// </summary>
         public string LineEnding { get; set; } = "";
     }
 
@@ -55,14 +81,28 @@ namespace MCUBoot.DateModels
     /// </summary>
     public class FrameConfig
     {
-        //启用帧处理
+        /// <summary>
+        /// 启用帧处理
+        /// </summary>
         public bool Enabled { get; set; } = false;
+        /// <summary>
+        /// 帧头
+        /// </summary>
         public string Header { get; set; } = "";
+        /// <summary>
+        /// 帧尾
+        /// </summary>
         public string Footer { get; set; } = "";
     }
     public class AutoSendConfig
     {
+        /// <summary>
+        /// 使能
+        /// </summary>
         public bool Enabled { get; set; } = false;
+        /// <summary>
+        /// 间隔
+        /// </summary>
         public int Interval { get; set; } = 0;
     }
 
@@ -72,109 +112,7 @@ namespace MCUBoot.DateModels
         public string FilePath { get; set; } = "";
     }
 
-    /// <summary>
-    /// Boot配置模型 - 整合所有Boot相关配置
-    /// </summary>
-    public class BootConfig
-    {
-        /// <summary>
-        /// 固件信息
-        /// </summary>
-        public FirmwareInfo Firmware { get; set; } = new FirmwareInfo();
-
-        /// <summary>
-        /// Boot状态
-        /// </summary>
-        public BootStatus Status { get; set; } = BootStatus.Disconnected;
-
-        /// <summary>
-        /// Boot命令配置
-        /// </summary>
-        public BootCommandConfig Commands { get; set; } = new BootCommandConfig();
-
-        /// <summary>
-        /// 传输参数
-        /// </summary>
-        public BootTransferConfig Transfer { get; set; } = new BootTransferConfig();
-    }
-
-    /// <summary>
-    /// 固件信息模型
-    /// </summary>
-    public class FirmwareInfo
-    {
-        public string FileName { get; set; } = "";
-        public string FilePath { get; set; } = "";
-        public long FileSize { get; set; }
-        public byte[] FileData { get; set; }
-        public DateTime LastModified { get; set; }
-        public string MD5Hash { get; set; } = "";
-        public uint WholeFileCRC { get; set; }  // 整个固件的CRC32
-        public Dictionary<int, uint> PacketCRCs { get; set; } = new Dictionary<int, uint>();  // 分包CRC32
-        public int PacketSize { get; set; }
-        public bool IsValid { get; set; }
-    }
-
-    /// <summary>
-    /// Boot状态枚举
-    /// </summary>
-    public enum BootStatus
-    {
-        Disconnected,
-        Connected,
-        InBootMode,
-        Uploading,
-        Verifying,
-        Completed,
-        Error
-    }
-
-    /// <summary>
-    /// Boot命令配置模型
-    /// </summary>
-    public class BootCommandConfig
-    {
-        public string EnterBoot { get; set; } = "55AA01";
-        public string Upload { get; set; } = "55AA02";
-        public string Verify { get; set; } = "55AA03";
-        public string RunApp { get; set; } = "55AA04";
-        public string Ack { get; set; } = "55AA06";
-        public string Nack { get; set; } = "55AA07";
-    }
-
-    /// <summary>
-    /// Boot传输配置
-    /// </summary>
-    public class BootTransferConfig
-    {
-        public int PacketSize { get; set; }
-        public int Timeout { get; set; } = 3000;
-        public int RetryCount { get; set; } = 3;
-    }
-
-    /// <summary>
-    /// Boot命令类型枚举
-    /// </summary>
-    public enum BootCommandType
-    {
-        EnterBoot,
-        Upload,
-        Verify,
-        RunApp,
-        Ack,
-        Nack,
-        Unknown
-    }
-
-    /// <summary>
-    /// Boot响应类型
-    /// </summary>
-    public enum BootResponseType
-    {
-        Unknown,
-        Ack,
-        Nack
-    }
+    
 
     /// <summary>
     /// 编码类型枚举

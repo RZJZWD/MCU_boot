@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MCUBoot"
         mc:Ignorable="d"
-        Title="MCU串口助手" Height="600" Width="850">
+        Title="MCU串口助手" Height="650" Width="850">
     <Grid Margin="6">
 
         <Grid.RowDefinitions>
@@ -192,18 +192,19 @@
                     <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="2,2,2,2" Grid.ColumnSpan="3">
                         <Label Content="固件文件:" VerticalAlignment="Center"/>
                         <TextBox x:Name="txtFirmwareFile" Width="120" Margin="5,2" IsReadOnly="True"/>
-                        <Button x:Name="btnBrowseFirmware" Content="..." Width="25" Margin="2" Click="btnBrowseFirmware_Click"/>
+                        <Button x:Name="BtnBrowseFirmware" Content="..." Width="25" Margin="2" Click="BtnBrowseFirmware_Click"/>
                     </StackPanel>
 
 
                     <!--Boot操作按钮-->
                     <StackPanel Orientation="Vertical" Grid.Row="2" Margin="2,2,2,2" Grid.ColumnSpan="3">
                         <!--Boot命令按钮-->
-                        <Button x:Name="btnBootSettings" Content="Boot设置" Margin="2"/>
-                        <Button x:Name="btnEnterBoot" Content="进入Boot模式" Margin="2"/>
-                        <Button x:Name="btnUploadFirmware" Content="上传固件" Margin="2"/>
-                        <Button x:Name="btnVerifyFirmware" Content="校验固件" Margin="2"/>
-                        <Button x:Name="btnRunApplication" Content="运行应用程序" Margin="2"/>
+                        <Button x:Name="BtnBootSettings" Content="Boot设置" Margin="2"/>
+                        <Button x:Name="BtnEnterBoot" Content="进入Boot模式" Margin="2"/>
+                        <Button x:Name="BtnUploadFirmware" Content="上传固件" Margin="2"/>
+                        <Button x:Name="BtnVerifyFirmware" Content="校验固件" Margin="2"/>
+                        <Button x:Name="BtnRunApplication" Content="运行应用程序" Margin="2"/>
+                        <Button x:Name="BtnTest" Content="测试" Margin="2" Click="BtnTest_Click"/>
                     </StackPanel>
 
                     <!--Boot状态显示-->
@@ -288,7 +289,7 @@
                             <ComboBoxItem Content="无行尾" Tag=""/>
                             <ComboBoxItem Content="CR (\r)" Tag="\r"/>
                             <ComboBoxItem Content="LF (\n)" Tag="\n" IsSelected="True"/>
-                            <ComboBoxItem Content="CRLF (\r\n)" Tag="\r\n" />
+                            <ComboBoxItem Content="CRLF (\r\n)" Tag="\r\n"/>
                         </ComboBox>
                     </StackPanel>
 

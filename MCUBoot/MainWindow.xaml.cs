@@ -1,5 +1,6 @@
 ﻿using MCUBoot.DateModels;
 using MCUBoot.Services;
+using MCUBoot.Services.BootService;
 using System.CodeDom;
 using System.Diagnostics;
 using System.IO;
@@ -15,8 +16,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
-using System.Windows.Shapes;
 using System.Xml.Serialization;
+
+
 namespace MCUBoot
 {
     /// <summary>
@@ -30,7 +32,6 @@ namespace MCUBoot
         private AutoSendService _autoSendService;
         private FileService _fileService;
         private BootService _bootService;
-
         //配置实例
         private SerialPortConfig _SerialPortConfig;
         private DisplayConfig _DisplayConfig;
@@ -38,11 +39,14 @@ namespace MCUBoot
         private AutoSendConfig _AutoSendConfig;
         private FileConfig _FileConfig;
         private BootConfig _BootConfig;
+
         private OperatModeConfig _OperatModeConfig;//上位机模式
 
         //UI状态
         private StringBuilder _receivedTextBuilder;
-        
+
+        private uint appLoadAddr = 0x08000000;
+        private int packetSize = 1024;
         
         public MainWindow()
         {
@@ -61,7 +65,7 @@ namespace MCUBoot
             SetFrameConfig(_FrameConfig);
             SetAutoSendConfig(_AutoSendConfig);
             SetFileConfig(_FileConfig);
-            SetBootconfig(_BootConfig);
+            SetBootConfig(_BootConfig);
         }
 
 
@@ -74,7 +78,7 @@ namespace MCUBoot
             _dataProcessService = new DataProcessService();
             _autoSendService = new AutoSendService();
             _fileService = new FileService();
-            _bootService = new BootService();
+            _bootService = new BootService(_serialPortService);
 
             _receivedTextBuilder = new StringBuilder();
         }
@@ -285,7 +289,7 @@ namespace MCUBoot
                     BootStatus.Disconnected => "未连接",
                     BootStatus.Connected => "已连接",
                     BootStatus.InBootMode => "Boot模式",
-                    BootStatus.Uploading => "上传中",
+                    BootStatus.Transfer => "上传中",
                     BootStatus.Verifying => "校验中",
                     BootStatus.Completed => "完成",
                     BootStatus.Error => "错误",
@@ -293,7 +297,7 @@ namespace MCUBoot
                 };
 
                 // 根据状态显示或隐藏进度条
-                progressBoot.Visibility = (status == BootStatus.Uploading || status == BootStatus.Verifying)
+                progressBoot.Visibility = (status == BootStatus.Transfer || status == BootStatus.Verifying)
                     ? Visibility.Visible : Visibility.Collapsed;
             });
         }
@@ -301,6 +305,20 @@ namespace MCUBoot
 
         #endregion
 
+        private void BtnTest_Click(object sender, RoutedEventArgs e)
+        {
+            byte[] testData = {1,2,3,4,5};
+            var customCommand1 = new BootCommandItem
+            {
+                SendCommand = CommandType.Ack,
+                SendData = testData,
+                ExpectedResponse = CommandType.Ack,
+                Description = "测试命令，回复ack",
+                TimeoutMs = 2000,
+            };
+            _bootService.AddCommand(customCommand1);
+            _bootService.StartTransfer(_DisplayConfig);
+        }
 
         #region UI控制
         /// <summary>
@@ -368,7 +386,7 @@ namespace MCUBoot
         }
         private void UpdateFileSavePathUI(FileConfig config)
         {
-            FilePathTextBox.Text = config.FilePath;
+            FilePathTextBox.Text = Path.Combine(config.FilePath, config.FileName);
         }
 
         /// <summary>
@@ -390,6 +408,8 @@ namespace MCUBoot
                         gbSerialSend.BorderBrush = Brushes.Green;
                         gbSendSettings.BorderBrush = Brushes.Green;
                         gbBootMode.BorderBrush = Brushes.Gray;
+
+                        
                         break;
 
                     case OperatingMode.Boot:
@@ -402,6 +422,7 @@ namespace MCUBoot
                         gbSerialSend.BorderBrush = Brushes.Gray;
                         gbSendSettings.BorderBrush = Brushes.Gray;
                         gbBootMode.BorderBrush = Brushes.Green;
+                        
                         break;
                 }
 
@@ -417,15 +438,9 @@ namespace MCUBoot
                 // 更新基本信息
                 txtFirmwareFile.Text = firmwareInfo.FileName;
 
-                //// 在接收区显示详细信息
-                //AppendToReceivedText($"[Boot] 固件信息: {firmwareInfo.FileName}");
-                //AppendToReceivedText($"[Boot] 文件大小: {FormatFileSize(firmwareInfo.FileSize)}");
-                //AppendToReceivedText($"[Boot] 整体CRC32: {CRC32Utility.FormatCRC32(firmwareInfo.WholeFileCRC)}");
-                //AppendToReceivedText($"[Boot] 分包数量: {firmwareInfo.PacketCRCs.Count} 包");
-
                 // 启用相关按钮
-                btnUploadFirmware.IsEnabled = true;
-                btnVerifyFirmware.IsEnabled = true;
+                BtnUploadFirmware.IsEnabled = true;
+                BtnVerifyFirmware.IsEnabled = true;
             }
             catch (Exception ex)
             {
@@ -464,6 +479,8 @@ namespace MCUBoot
                     //更新串口配置
                     UpdateSerialConfigFromUI();
                     //打开串口
+                   
+                    _SerialPortConfig.NewLine = _DisplayConfig.LineEnding;  //设置行写出换行符
                     _serialPortService.Open(_SerialPortConfig);
                     AppendToReceivedText($"---已开启串口 {_SerialPortConfig.PortName} ---\r\n");
                 }
@@ -492,7 +509,7 @@ namespace MCUBoot
             {
                 comReceived.Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    if (_receivedTextBuilder.Length > 0)
+                    if (_receivedTextBuilder.Length > 0 && _DisplayConfig.AutoWrap)
                     {
                         _receivedTextBuilder.AppendLine();
                     }
@@ -665,7 +682,7 @@ namespace MCUBoot
                     _FileConfig.FilePath = System.IO.Path.GetDirectoryName(filePath);
                     _FileConfig.FileName = System.IO.Path.GetFileName(filePath);
                     UpdateFileSavePathUI(_FileConfig);
-                    AppendToReceivedText($"文件保存路径：{filePath}\n");
+                    AppendToReceivedText($"文件保存路径设置为：{filePath}\n");
                 }
                 else
                 {
@@ -682,7 +699,7 @@ namespace MCUBoot
             }
         }
 
-        private void btnBrowseFirmware_Click(object sender, RoutedEventArgs e)
+        private void BtnBrowseFirmware_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -697,11 +714,11 @@ namespace MCUBoot
                 {
                     string filePath = openFileDialog.FileName;
 
-                    // 设置Boot配置
-                    _bootService.SetBootConfig(_BootConfig);
-
-                    // 加载固件（使用默认分包大小256）
-                    if (_bootService.LoadFirmware(filePath,_BootConfig.Transfer.PacketSize))
+                    // 从BootService获取传输配置
+                    var transferConfig = _bootService.GetTransferConfig();
+                    
+                    // 加载固件
+                    if (_bootService.LoadFirmware(filePath, packetSize, appLoadAddr))
                     {
                         txtFirmwareFile.Text = System.IO.Path.GetFileName(filePath);
                     }
@@ -895,9 +912,8 @@ namespace MCUBoot
             UpdateFileSavePathUI(config);
         }
 
-        private void SetBootconfig(BootConfig config)
+        private void SetBootConfig(BootConfig config)
         {
-            config.Transfer.PacketSize = 1024;
             _bootService.SetBootConfig(config);
         }
 
@@ -948,23 +964,7 @@ namespace MCUBoot
                 .Replace("\\t", "\t");
         }
 
-        /// <summary>
-        /// 格式化文件大小
-        /// </summary>
-        private string FormatFileSize(long bytes)
-        {
-            string[] sizes = { "B", "KB", "MB", "GB" };
-            int order = 0;
-            double size = bytes;
-
-            while (size >= 1024 && order < sizes.Length - 1)
-            {
-                order++;
-                size = size / 1024;
-            }
-
-            return $"{size:0.##} {sizes[order]}";
-        }
+        
         #endregion
 
 
