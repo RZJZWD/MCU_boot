@@ -307,16 +307,27 @@ namespace MCUBoot
 
         private void BtnTest_Click(object sender, RoutedEventArgs e)
         {
-            byte[] testData = {1,2,3,4,5};
-            var customCommand1 = new BootCommandItem
+            byte[] testData1 = Encoding.UTF8.GetBytes("这是一条错误信息");
+            byte[] testData2 = new byte[512];
+            var customCommand2 = new BootCommandItem
             {
                 SendCommand = CommandType.Ack,
-                SendData = testData,
+                SendData = testData2,
                 ExpectedResponse = CommandType.Ack,
-                Description = "测试命令，回复ack",
+                Description = "回环测试数据命令，回复ack",
                 TimeoutMs = 2000,
             };
+            var customCommand1 = new BootCommandItem
+            {
+                SendCommand = CommandType.ErrorResponse,
+                SendData = testData1,
+                ExpectedResponse = CommandType.Ack,
+                Description = "回环测试错误命令，回复ack",
+                TimeoutMs = 2000,
+            };
+            _bootService.AddCommand(customCommand2);
             _bootService.AddCommand(customCommand1);
+            
             _bootService.StartTransfer(_DisplayConfig);
         }
 

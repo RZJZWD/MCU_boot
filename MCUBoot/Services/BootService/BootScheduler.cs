@@ -7,11 +7,14 @@ using System.Threading.Tasks;
 
 namespace MCUBoot.Services.BootService
 {
+    
     internal class BootScheduler : IDisposable
     {
         private readonly BootTransfer _bootTransfer;
         private readonly Queue<BootCommandItem> _commandQueue;
-        private bool _isExecuting;
+        private bool _isExecuting;                              //正在执行中
+        private bool _stopSchedule = false;                       //是否停止调度
+        private string deviceErrorMessage = string.Empty;       //设备错误信息
         private readonly object _lock = new object();
 
         //事件
@@ -27,6 +30,7 @@ namespace MCUBoot.Services.BootService
             //订阅传输层事件
             _bootTransfer.LogMessage += OnBootTransferLog;
             _bootTransfer.ErrorOccurred += OnBootTransferError;
+            _bootTransfer.DeviceErrorReceived += OnDeviceErrorReceived;
         }
 
         /// <summary>
@@ -100,6 +104,7 @@ namespace MCUBoot.Services.BootService
         #region 调度器开始/停止
         public async Task<BootCommandResult> StartAsync(DisplayConfig displayConfig)
         {
+            _stopSchedule = false;
             if (_isExecuting)
             {
                 throw new InvalidOperationException("命令队列正在执行中，请等待完成");
@@ -176,7 +181,16 @@ namespace MCUBoot.Services.BootService
                     {
                         response = await _bootTransfer.SendCommandAsync(commandItem.SendCommand, commandItem.ExpectedResponse);
                     }
-
+                    // 如果收到错误响应，传输层已经通过事件处理了停止逻辑
+                    // 我们只需检查是否需要退出循环
+                    if (_stopSchedule)
+                    {
+                        result.Success = false;
+                        result.ErrorMessage = deviceErrorMessage;
+                        result.Responses.Add(response);
+                        result.ExecutedCount++;
+                        break;
+                    }
                     if (response == null)
                     {
                         result.Success = false;
@@ -192,6 +206,7 @@ namespace MCUBoot.Services.BootService
                     }
 
                     // 保存响应
+                    result.Success = true;
                     result.Responses.Add(response);
                     result.ExecutedCount++;
 
@@ -208,7 +223,7 @@ namespace MCUBoot.Services.BootService
                     //LogMessage?.Invoke(this, $"命令完成: {commandItem.Description}");
                 }
 
-                result.Success = true;
+                
                 return result;
             }
             catch (Exception ex)
@@ -232,6 +247,7 @@ namespace MCUBoot.Services.BootService
             {
                 _commandQueue.Clear();
                 _isExecuting = false;
+                _stopSchedule = true;
             }
             LogMessage?.Invoke(this, "队列已停止执行并清空");
         }
@@ -247,6 +263,18 @@ namespace MCUBoot.Services.BootService
         private void OnBootTransferError(object sender, string errorMessage)
         {
             ErrorOccurred?.Invoke(this, $"[传输层] {errorMessage}");
+        }
+
+        /// <summary>
+        /// 设备错误处理
+        /// </summary>
+        private void OnDeviceErrorReceived(object sender, string errorMessage)
+        {
+            LogMessage?.Invoke(this, $"[传输层] {errorMessage}");
+            LogMessage?.Invoke(this, "命令调度器停止运行");
+            //将设备错误信息同步到类中
+            deviceErrorMessage = errorMessage;
+            StopExecution();
         }
         #endregion
 

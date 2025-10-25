@@ -199,7 +199,7 @@
                     <!--Boot操作按钮-->
                     <StackPanel Orientation="Vertical" Grid.Row="2" Margin="2,2,2,2" Grid.ColumnSpan="3">
                         <!--Boot命令按钮-->
-                        <Button x:Name="BtnBootSettings" Content="Boot设置" Margin="2"/>
+                        <Button x:Name="BtnBootSettings" Content="Boot设置" Margin="2" Visibility="Collapsed"/>
                         <Button x:Name="BtnEnterBoot" Content="进入Boot模式" Margin="2"/>
                         <Button x:Name="BtnUploadFirmware" Content="上传固件" Margin="2"/>
                         <Button x:Name="BtnVerifyFirmware" Content="校验固件" Margin="2"/>

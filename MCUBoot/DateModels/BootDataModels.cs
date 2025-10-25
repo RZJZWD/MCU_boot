@@ -93,17 +93,9 @@ namespace MCUBoot.DateModels
         /// </summary>
         public int RetryCount { get; set; } = 3;
         /// <summary>
-        /// 命令长度
-        /// </summary>
-        public int CMDLenght { get; set; } = 6;
-        /// <summary>
         /// 行尾
         /// </summary>
         public string LineEnding { get; set; } = "";
-        /// <summary>
-        /// 是否有数据
-        /// </summary>
-        public int HasData { get; set; } = 1;
     }
 
     /// <summary>
@@ -134,7 +126,11 @@ namespace MCUBoot.DateModels
         /// <summary>
         /// 应答，有错误
         /// </summary>
-        Nack = 0x07
+        Nack = 0x07,
+        /// <summary>
+        /// 错误响应命令
+        /// </summary>
+        ErrorResponse = 0xFF      
     }
 
     /// <summary>
@@ -263,7 +259,7 @@ namespace MCUBoot.DateModels
         /// <summary>
         /// 发送的数据
         /// </summary>
-        public byte[] SendData { get; set; }
+        public byte[] SendData { get; set; } = new byte[0];
         /// <summary>
         /// 期待的回应
         /// </summary>

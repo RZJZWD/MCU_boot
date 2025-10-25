@@ -19,6 +19,7 @@ public class BootTransfer : IDisposable
     // 标准事件定义
     public event EventHandler<string> LogMessage;               // boot日志
     public event EventHandler<string> ErrorOccurred;            // 错误处理
+    public event EventHandler<string> DeviceErrorReceived;      // 设备错误
     public event EventHandler<CommandFrame> ResponseReceived;   // 响应接收
 
     public BootTransfer(SerialPortService serialPort)
@@ -85,7 +86,7 @@ public class BootTransfer : IDisposable
 
                 // 发送命令
                 var data = sendFrame.ToBytes();
-                byte[] lineEndingBytes = Encoding.UTF8.GetBytes(_transferConfig.LineEnding);
+                byte[] lineEndingBytes = Encoding.UTF8.GetBytes(_transferConfig.LineEnding);    //添加尾行
                 byte[] combined = data.Concat(lineEndingBytes).ToArray();
                 _serialPort.SendData(combined);
 
@@ -94,6 +95,16 @@ public class BootTransfer : IDisposable
                 var response = await WaitForExpectedResponseAsync(timeoutMs, expectedCommand);
                 if (response != null)
                 {
+                    // 检查是否是错误响应
+                    if (response.Command == CommandType.ErrorResponse)
+                    {
+                        string errorMsg = ParseErrorMessage(response);
+                        //LogMessage?.Invoke(this, $"收到设备错误: {errorMsg}");
+                        DeviceErrorReceived?.Invoke(this, $"设备错误: {errorMsg}");
+                        return response; // 返回错误帧
+                    }
+
+                    // 正常响应
                     LogMessage?.Invoke(this, $"收到期望响应: {response.Command}");
                     return response;
                 }
@@ -171,7 +182,7 @@ public class BootTransfer : IDisposable
                 if (_responseReceived && _lastReceivedFrame != null)
                 {
                     // 检查是否是我们期望的命令类型
-                    if (_lastReceivedFrame.Command == expectedCommand)
+                    if (_lastReceivedFrame.Command == expectedCommand || _lastReceivedFrame.Command == CommandType.ErrorResponse)
                     {
                         var response = _lastReceivedFrame;
                         ResetResponseState(); // 重置状态以便下次使用
@@ -221,7 +232,23 @@ public class BootTransfer : IDisposable
         ErrorOccurred?.Invoke(this, $"[串口错误] {errorMessage}");
     }
 
+    /// <summary>
+    /// 解析错误信息
+    /// </summary>
+    private string ParseErrorMessage(CommandFrame errorFrame)
+    {
+        if (errorFrame.Data == null || errorFrame.Data.Length == 0)
+            return "未知错误信息";
 
+        try
+        {
+            return Encoding.UTF8.GetString(errorFrame.Data);
+        }
+        catch
+        {
+            return "错误信息无法解析";
+        }
+    }
 
     public void Dispose()
     {
