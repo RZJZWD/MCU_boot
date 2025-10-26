@@ -17,7 +17,7 @@ namespace MCUBoot.Services.BootService
         private BootTransfer _bootTransfer;
         private BootScheduler _bootScheduler;
         private BootConfig _bootConfig;
-
+        private BootTasks _bootTasks;
 
         // BootService自己的事件
         public event EventHandler<string> LogMessage;
@@ -32,6 +32,7 @@ namespace MCUBoot.Services.BootService
             _bootFirmware = new BootFirmware();
             _bootTransfer = new BootTransfer(serialPortService);
             _bootScheduler = new BootScheduler(_bootTransfer);
+            _bootTasks = new BootTasks();
             _bootConfig = CreateDefaultConfig();
 
             // 订阅各个组件的事件
@@ -318,6 +319,14 @@ namespace MCUBoot.Services.BootService
         {
             CommandProgressChanged?.Invoke(this, e);
             ProgressChanged?.Invoke(this, (int)e.ProgressPercentage);
+        }
+        #endregion
+
+        #region 添加指定任务
+        public void AddEnterBootCommand()
+        {
+            BootCommandItem cmd = _bootTasks.CreatEnterBootModeCommand();
+            AddCommand(cmd);
         }
         #endregion
     }

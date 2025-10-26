@@ -101,11 +101,12 @@ public class BootTransfer : IDisposable
                         string errorMsg = ParseErrorMessage(response);
                         //LogMessage?.Invoke(this, $"收到设备错误: {errorMsg}");
                         DeviceErrorReceived?.Invoke(this, $"设备错误: {errorMsg}");
-                        return response; // 返回错误帧
                     }
-
-                    // 正常响应
-                    LogMessage?.Invoke(this, $"收到期望响应: {response.Command}");
+                    else
+                    {
+                        // 正常响应
+                        LogMessage?.Invoke(this, $"收到期望响应: {response.Command}");
+                    }      
                     return response;
                 }
             }

@@ -308,26 +308,56 @@ namespace MCUBoot
         private void BtnTest_Click(object sender, RoutedEventArgs e)
         {
             byte[] testData1 = Encoding.UTF8.GetBytes("这是一条错误信息");
-            byte[] testData2 = new byte[512];
+            byte[] testData2 = new byte[128];
+            
             var customCommand2 = new BootCommandItem
             {
                 SendCommand = CommandType.Ack,
                 SendData = testData2,
-                ExpectedResponse = CommandType.Ack,
+                ResponseCommand = CommandType.Ack,
                 Description = "回环测试数据命令，回复ack",
-                TimeoutMs = 2000,
+                TransferTimeoutMs = 2000,
+                ResponseHandler = (response) =>
+                {
+                    if (response.Command == CommandType.Ack)
+                    {
+
+                        return ResponseAction.Continue;
+                    }
+                    if (response.Command == CommandType.ErrorResponse)
+                    {
+                        // 验证失败，停止
+                        return ResponseAction.Stop;
+                    }
+                    return ResponseAction.Stop;
+                }
             };
             var customCommand1 = new BootCommandItem
             {
                 SendCommand = CommandType.ErrorResponse,
                 SendData = testData1,
-                ExpectedResponse = CommandType.Ack,
+                ResponseCommand = CommandType.Ack,
                 Description = "回环测试错误命令，回复ack",
-                TimeoutMs = 2000,
+                TransferTimeoutMs = 2000,
+                ScheduleRetryCount = 3,
+                ResponseHandler = (response) =>
+                {
+                    if (response.Command == CommandType.Ack)
+                    {
+
+                        return ResponseAction.Continue;
+                    }
+                    if (response.Command == CommandType.ErrorResponse)
+                    {
+                        // 验证失败，停止
+                        return ResponseAction.Retry;
+                    }
+                    return ResponseAction.Stop;
+                }
             };
-            _bootService.AddCommand(customCommand2);
             _bootService.AddCommand(customCommand1);
-            
+            _bootService.AddCommand(customCommand2);
+            //_bootService.AddEnterBootCommand();
             _bootService.StartTransfer(_DisplayConfig);
         }
 

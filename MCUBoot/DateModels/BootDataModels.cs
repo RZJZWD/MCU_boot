@@ -263,19 +263,68 @@ namespace MCUBoot.DateModels
         /// <summary>
         /// 期待的回应
         /// </summary>
-        public CommandType ExpectedResponse { get; set; }
+        public CommandType ResponseCommand { get; set; }
         /// <summary>
         /// 命令描述
         /// </summary>
         public string Description { get; set; }
         /// <summary>
-        /// 自定义超时
+        /// 自定义传输层超时
         /// </summary>
-        public int? TimeoutMs { get; set; }
+        public int? TransferTimeoutMs { get; set; }
         /// <summary>
-        /// 自定义重试次数
+        /// 自定义传输层重试次数
         /// </summary>
-        public int? RetryCount { get; set; }
+        public int? TransferRetryCount { get; set; }
+        /// <summary>
+        /// 自定义调度层重试次数
+        /// </summary>
+        public int? ScheduleRetryCount { get; set; }
+        /// <summary>
+        /// 默认调度层重试次数
+        /// </summary>
+        private int defaultScheduleRetryCount { get; } = 3;
+        /// <summary>
+        /// 当前调度层重试次数
+        /// </summary>
+        private int currentScheduleRetryCount { get; set; } = 0;
+        /// <summary>
+        /// 调度层回应处理器 - 根据响应决定是否重试
+        /// </summary>
+        public Func<CommandFrame, ResponseAction> ResponseHandler { get; set; }
+
+        public BootCommandItem CreateRetryCommand(BootCommandItem BCI)
+        {
+            int maxRetryCount = BCI.ScheduleRetryCount ?? BCI.defaultScheduleRetryCount; // 默认重试3次
+            if (BCI.currentScheduleRetryCount < maxRetryCount)
+            {
+                BCI.currentScheduleRetryCount++;
+                return BCI;
+            }
+            else
+            {
+                return null;
+            } 
+        }
+    }
+    public enum ResponseAction
+    {
+        /// <summary>
+        /// 继续下一个命令
+        /// </summary>
+        Continue,
+        /// <summary>
+        /// 非阻塞重试当前命令，追加到命令队列末尾
+        /// </summary>
+        Retry,
+        /// <summary>
+        /// 停止执行
+        /// </summary>
+        Stop,
+        /// <summary>
+        /// 跳过当前命令
+        /// </summary>
+        Skip,
     }
     /// <summary>
     /// 命令队列执行结果

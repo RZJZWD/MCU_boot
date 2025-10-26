@@ -162,10 +162,10 @@ namespace MCUBoot.Services.BootService
                     });
 
                     // 设置自定义配置（如果存在）
-                    if (commandItem.TimeoutMs.HasValue || commandItem.RetryCount.HasValue)
+                    if (commandItem.TransferTimeoutMs.HasValue || commandItem.TransferRetryCount.HasValue)
                     {
-                        tempTransferConfig.Timeout = commandItem.TimeoutMs ?? originalTimeout;
-                        tempTransferConfig.RetryCount = commandItem.RetryCount ?? originalRetryCount;
+                        tempTransferConfig.Timeout = commandItem.TransferTimeoutMs ?? originalTimeout;
+                        tempTransferConfig.RetryCount = commandItem.TransferRetryCount ?? originalRetryCount;
                         _bootTransfer.SetTransferConfig(tempTransferConfig);
                     }
 
@@ -175,26 +175,17 @@ namespace MCUBoot.Services.BootService
                     CommandFrame response;
                     if (commandItem.SendData != null && commandItem.SendData.Length > 0)
                     {
-                        response = await _bootTransfer.SendCommandAsync(commandItem.SendCommand, commandItem.SendData, commandItem.ExpectedResponse);
+                        response = await _bootTransfer.SendCommandAsync(commandItem.SendCommand, commandItem.SendData, commandItem.ResponseCommand);
                     }
                     else
                     {
-                        response = await _bootTransfer.SendCommandAsync(commandItem.SendCommand, commandItem.ExpectedResponse);
+                        response = await _bootTransfer.SendCommandAsync(commandItem.SendCommand, commandItem.ResponseCommand);
                     }
-                    // 如果收到错误响应，传输层已经通过事件处理了停止逻辑
-                    // 我们只需检查是否需要退出循环
-                    if (_stopSchedule)
-                    {
-                        result.Success = false;
-                        result.ErrorMessage = deviceErrorMessage;
-                        result.Responses.Add(response);
-                        result.ExecutedCount++;
-                        break;
-                    }
+                    //回应为空的情况，直接返回
                     if (response == null)
                     {
                         result.Success = false;
-                        result.ErrorMessage = $"命令执行失败: {commandItem.Description}";
+                        result.ErrorMessage = $"命令执行失败: {commandItem.Description}，通信中断";
 
                         // 清空剩余队列
                         lock (_lock)
@@ -210,17 +201,24 @@ namespace MCUBoot.Services.BootService
                     result.Responses.Add(response);
                     result.ExecutedCount++;
 
-                    //// 执行响应处理回调
-                    //try
-                    //{
-                    //    commandItem.ResponseHandler?.Invoke(response);
-                    //}
-                    //catch (Exception ex)
-                    //{
-                    //    LogMessage?.Invoke(this, $"响应处理回调执行异常: {ex.Message}");
-                    //}
+                    // 执行响应处理回调
+                    ResponseAction action = ResponseAction.Continue;
+                    try
+                    {
+                        //回调不为空
+                        if (commandItem.ResponseHandler != null)
+                        {
+                            action = commandItem.ResponseHandler(response);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogMessage?.Invoke(this, $"响应处理回调执行异常: {ex.Message}");
+                    }
+                    result = HandlerResponseAction(result, action, response, commandItem);
 
-                    //LogMessage?.Invoke(this, $"命令完成: {commandItem.Description}");
+
+                    LogMessage?.Invoke(this, $"命令完成: {commandItem.Description}");
                 }
 
                 
@@ -238,6 +236,7 @@ namespace MCUBoot.Services.BootService
             }
         }
 
+
         /// <summary>
         /// 停止队列执行（在下次命令执行检查时停止）
         /// </summary>
@@ -250,6 +249,49 @@ namespace MCUBoot.Services.BootService
                 _stopSchedule = true;
             }
             LogMessage?.Invoke(this, "队列已停止执行并清空");
+        }
+
+        private BootCommandResult HandlerResponseAction(BootCommandResult result, ResponseAction action, CommandFrame response, BootCommandItem CommandItem)
+        {            
+            // 根据回调结果执行相应动作
+            switch (action)
+            {
+                case ResponseAction.Continue:
+                    result.Responses.Add(response);
+                    result.ExecutedCount++;
+                    break;
+
+                case ResponseAction.Retry:
+                    // 创建重试命令并添加到队列
+                    var retryCommand = CommandItem.CreateRetryCommand(CommandItem);
+                    if(retryCommand != null)
+                    {
+                        lock (_lock)
+                        {
+                            _commandQueue.Enqueue(retryCommand);
+                            result.TotalCount++; // 更新总命令数
+                        }
+                    }
+                    else
+                    {
+                        LogMessage?.Invoke(this,"达到最大重试次数");
+                    }
+                    break;
+
+                case ResponseAction.Stop:
+                    result.Success = false;
+                    result.ErrorMessage = deviceErrorMessage;
+                    result.Responses.Add(response);
+                    result.ExecutedCount++;
+                    lock (_lock) { _commandQueue.Clear(); }
+                    break;
+
+                case ResponseAction.Skip:
+                    result.ExecutedCount++; // 计数但不保存响应
+                    break;
+            }
+
+            return result;
         }
 
         #endregion
@@ -271,10 +313,9 @@ namespace MCUBoot.Services.BootService
         private void OnDeviceErrorReceived(object sender, string errorMessage)
         {
             LogMessage?.Invoke(this, $"[传输层] {errorMessage}");
-            LogMessage?.Invoke(this, "命令调度器停止运行");
             //将设备错误信息同步到类中
             deviceErrorMessage = errorMessage;
-            StopExecution();
+            //StopExecution();
         }
         #endregion
 

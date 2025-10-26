@@ -18,7 +18,7 @@ namespace MCUBoot.Services.BootService
             BootCommandItem EnterBoot = new BootCommandItem();
             EnterBoot.Description = "下位机进入Boot";
             EnterBoot.SendCommand = CommandType.EnterBoot;
-            EnterBoot.ExpectedResponse = CommandType.EnterBoot;
+            EnterBoot.ResponseCommand = CommandType.EnterBoot;
 
             return EnterBoot;
         }
@@ -27,7 +27,7 @@ namespace MCUBoot.Services.BootService
             BootCommandItem RunApp = new BootCommandItem();
             RunApp.Description = "下位机运行app";
             RunApp.SendCommand = CommandType.RunApp;
-            RunApp.ExpectedResponse = CommandType.RunApp;
+            RunApp.ResponseCommand = CommandType.RunApp;
 
             return RunApp;
         }
