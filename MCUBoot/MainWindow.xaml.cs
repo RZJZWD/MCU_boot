@@ -46,7 +46,7 @@ namespace MCUBoot
         private StringBuilder _receivedTextBuilder;
 
         private uint appLoadAddr = 0x08000000;
-        private int packetSize = 1024;
+        private int packetSize = 256;
         
         public MainWindow()
         {
@@ -307,21 +307,19 @@ namespace MCUBoot
 
         private void BtnTest_Click(object sender, RoutedEventArgs e)
         {
-            byte[] testData1 = Encoding.UTF8.GetBytes("这是一条错误信息");
-            byte[] testData2 = new byte[128];
-            
-            var customCommand2 = new BootCommandItem
+            string errorMessage = "device";
+            var customCommand1 = new BootCommandItem
             {
                 SendCommand = CommandType.Ack,
-                SendData = testData2,
                 ResponseCommand = CommandType.Ack,
-                Description = "回环测试数据命令，回复ack",
+                SendData = Encoding.UTF8.GetBytes(errorMessage),
+                Description = "发送ACK命令，期望回复ack，预计回复ack",
                 TransferTimeoutMs = 2000,
+                TransferRetryCount = 0,
                 ResponseHandler = (response) =>
                 {
                     if (response.Command == CommandType.Ack)
                     {
-
                         return ResponseAction.Continue;
                     }
                     if (response.Command == CommandType.ErrorResponse)
@@ -332,32 +330,31 @@ namespace MCUBoot
                     return ResponseAction.Stop;
                 }
             };
-            var customCommand1 = new BootCommandItem
+            var customCommand2 = new BootCommandItem
             {
-                SendCommand = CommandType.ErrorResponse,
-                SendData = testData1,
-                ResponseCommand = CommandType.Ack,
-                Description = "回环测试错误命令，回复ack",
+                SendCommand = CommandType.EnterBoot,
+                ResponseCommand = CommandType.EnterBoot,
+                Description = "发送EnterBoot命令，期望回复EnterBoot，带设备信息",
                 TransferTimeoutMs = 2000,
-                ScheduleRetryCount = 3,
+                TransferRetryCount = 0,
                 ResponseHandler = (response) =>
                 {
-                    if (response.Command == CommandType.Ack)
+                    if (response.Command == CommandType.EnterBoot)
                     {
-
                         return ResponseAction.Continue;
                     }
                     if (response.Command == CommandType.ErrorResponse)
                     {
                         // 验证失败，停止
-                        return ResponseAction.Retry;
+                        return ResponseAction.Stop;
                     }
                     return ResponseAction.Stop;
                 }
             };
-            _bootService.AddCommand(customCommand1);
+
             _bootService.AddCommand(customCommand2);
-            //_bootService.AddEnterBootCommand();
+            _bootService.AddCommand(customCommand1);  
+            
             _bootService.StartTransfer(_DisplayConfig);
         }
 
@@ -396,7 +393,7 @@ namespace MCUBoot
         /// <summary>
         /// 更新暂停显示按钮
         /// </summary>
-        /// <param name="isPaused">暂停显示</param>
+        /// <param name="isPaused">暂停显示接收</param>
         private void UpdatePauseShowRecvUI(bool isPaused)
         {
             BtnPauseShowReceived.Content = isPaused ? "继续显示" : "暂停显示";

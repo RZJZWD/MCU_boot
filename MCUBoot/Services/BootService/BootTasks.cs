@@ -19,7 +19,24 @@ namespace MCUBoot.Services.BootService
             EnterBoot.Description = "下位机进入Boot";
             EnterBoot.SendCommand = CommandType.EnterBoot;
             EnterBoot.ResponseCommand = CommandType.EnterBoot;
-
+            EnterBoot.TransferTimeoutMs = 1000;
+            EnterBoot.TransferRetryCount = 3;
+            EnterBoot.ResponseHandler = (response) =>
+            {
+                if (response.Command == CommandType.EnterBoot)
+                {
+                    return ResponseAction.Continue;
+                }
+                if (response.Command == CommandType.Nack)
+                {
+                    return ResponseAction.Stop;
+                }
+                if(response.Command == CommandType.ErrorResponse)
+                {
+                    return ResponseAction.Stop;
+                }
+                return ResponseAction.Stop;
+            };
             return EnterBoot;
         }
         public BootCommandItem CreatRunAppCommand()
@@ -27,9 +44,27 @@ namespace MCUBoot.Services.BootService
             BootCommandItem RunApp = new BootCommandItem();
             RunApp.Description = "下位机运行app";
             RunApp.SendCommand = CommandType.RunApp;
-            RunApp.ResponseCommand = CommandType.RunApp;
-
+            RunApp.ResponseCommand = CommandType.Ack;
+            RunApp.TransferTimeoutMs = 1000;
+            RunApp.TransferRetryCount = 3;
+            RunApp.ResponseHandler = (response) =>
+            {
+                if (response.Command == CommandType.Ack)
+                {
+                    return ResponseAction.Continue;
+                }
+                if (response.Command == CommandType.Nack)
+                {
+                    return ResponseAction.Stop;
+                }
+                if (response.Command == CommandType.ErrorResponse)
+                {
+                    return ResponseAction.Stop;
+                }
+                return ResponseAction.Stop;
+            };
             return RunApp;
         }
+
     }
 }

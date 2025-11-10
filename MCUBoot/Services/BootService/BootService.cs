@@ -149,6 +149,16 @@ namespace MCUBoot.Services.BootService
             LogMessage?.Invoke(this, $"固件验证流程完成，结果: {(result ? "通过" : "失败")}");
             return result;
         }
+        /// <summary>
+        /// 获取固件包
+        /// </summary>
+        /// <param name="packetIndex">固件包索引</param>
+        /// <returns></returns>
+        public byte[] GetFirmwarePacket(int packetIndex)
+        {
+            LogMessage?.Invoke(this, $"获取固件包({packetIndex + 1}/{_bootFirmware.GetTotalPackets()})");
+            return _bootFirmware.BuildFirmwarePacket(packetIndex);
+        }
         #endregion
 
         #region 调度器接口
@@ -293,16 +303,16 @@ namespace MCUBoot.Services.BootService
             UpdateStatus(BootStatus.Error);
         }
 
-        private void OnBootTransferLogMessage(object sender, string message)
-        {
-            LogMessage?.Invoke(this, $"[传输服务] {message}");
-        }
+        //private void OnBootTransferLogMessage(object sender, string message)
+        //{
+        //    LogMessage?.Invoke(this, $"[传输服务] {message}");
+        //}
 
-        private void OnBootTransferErrorOccurred(object sender, string errorMessage)
-        {
-            ErrorOccurred?.Invoke(this, $"[传输服务] {errorMessage}");
-            UpdateStatus(BootStatus.Error);
-        }
+        //private void OnBootTransferErrorOccurred(object sender, string errorMessage)
+        //{
+        //    ErrorOccurred?.Invoke(this, $"[传输服务] {errorMessage}");
+        //    UpdateStatus(BootStatus.Error);
+        //}
 
         private void OnBootSchedulerLogMessage(object sender, string message)
         {

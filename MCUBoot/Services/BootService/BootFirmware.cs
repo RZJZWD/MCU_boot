@@ -208,6 +208,39 @@ namespace MCUBoot.Services.BootService
         #endregion
 
         //固件打包
+        public byte[] BuildFirmwarePacket(int packetIndex)
+        {
+            if (_firmwareInfo?.FileData == null)
+            {
+                ErrorOccurred?.Invoke(this, "没有可打包的固件数据");
+                return null;
+            }
+            try
+            {
+                int totalPackets = GetTotalPackets();
+                if (packetIndex < 0 || packetIndex >= totalPackets) {
+                    ErrorOccurred?.Invoke(this, $"无效的包索引: {packetIndex}，有效范围: 0-{totalPackets - 1}");
+                    return null;
+                }
+                byte[] packetdata = GetPacketData(packetIndex);
+                if (packetdata == null)
+                {
+                    ErrorOccurred?.Invoke(this, $"获取分包数据失败: {packetIndex}");
+                    return null;
+                }
+                uint packetCRC = GetPacketCRC(packetIndex);
+
+                byte[] packedData = PackData(packetIndex, totalPackets, packetdata, packetCRC);
+
+                return packedData;
+            }
+            catch (Exception ex)
+            {
+                ErrorOccurred?.Invoke(this, $"打包数据包失败 (索引{packetIndex}): {ex.Message}");
+                return null;
+            } 
+
+        }
 
         #region CRC32计算与校验
 
@@ -331,6 +364,41 @@ namespace MCUBoot.Services.BootService
             }
 
             return $"{size:0.##} {sizes[order]}";
+        }
+        /// <summary>
+        /// 按照指定结构打包：包索引 + 包总数 + 包数据 + CRC32
+        /// </summary>
+        private byte[] PackData(int packetIndex, int totalPackets, byte[] packetData, uint crc32)
+        {
+            // 包结构（严格按照要求）：
+            // [包索引(4字节)] [包总数(4字节)] [包数据(N字节)] [CRC32(4字节)]
+
+            // 计算总长度
+            int totalLength = 4 + 4 + packetData.Length + 4; // 索引4 + 总数4 + 数据N + CRC4
+
+            // 创建结果数组
+            byte[] result = new byte[totalLength];
+            int offset = 0;
+
+            // 1. 包索引 (4字节)
+            byte[] indexBytes = BitConverter.GetBytes(packetIndex);
+            Array.Copy(indexBytes, 0, result, offset, 4);
+            offset += 4;
+
+            // 2. 包总数 (4字节)
+            byte[] totalBytes = BitConverter.GetBytes(totalPackets);
+            Array.Copy(totalBytes, 0, result, offset, 4);
+            offset += 4;
+
+            // 3. 包数据 (N字节)
+            Array.Copy(packetData, 0, result, offset, packetData.Length);
+            offset += packetData.Length;
+
+            // 4. CRC32 (4字节)
+            byte[] crcBytes = BitConverter.GetBytes(crc32);
+            Array.Copy(crcBytes, 0, result, offset, 4);
+
+            return result;
         }
 
         #endregion

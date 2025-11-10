@@ -68,13 +68,13 @@ public class BootTransfer : IDisposable
         int timeoutMs = _transferConfig?.Timeout ?? 3000;
         int retryCount = _transferConfig?.RetryCount ?? 3;
 
-        for (int attempt = 0; attempt < retryCount; attempt++)
+        for (int attempt = 0; attempt <= retryCount; attempt++)
         {
             try
             {
                 if (attempt > 0)
                 {
-                    LogMessage?.Invoke(this, $"第{attempt + 1}次重试命令: {sendFrame.Command}");
+                    LogMessage?.Invoke(this, $"第{attempt}次重试命令: {sendFrame.Command}");
                 }
                 else
                 {
@@ -86,9 +86,14 @@ public class BootTransfer : IDisposable
 
                 // 发送命令
                 var data = sendFrame.ToBytes();
-                byte[] lineEndingBytes = Encoding.UTF8.GetBytes(_transferConfig.LineEnding);    //添加尾行
-                byte[] combined = data.Concat(lineEndingBytes).ToArray();
-                _serialPort.SendData(combined);
+                _serialPort.SendData(data);
+
+
+                //var data = sendFrame.ToBytes();
+                //byte[] lineEndingBytes = Encoding.UTF8.GetBytes(_transferConfig.LineEnding);    //添加尾行
+                //byte[] combined = data.Concat(lineEndingBytes).ToArray();
+                //_serialPort.SendData(combined);
+
 
 
                 // 等待期望的响应
@@ -105,32 +110,42 @@ public class BootTransfer : IDisposable
                     else
                     {
                         // 正常响应
-                        LogMessage?.Invoke(this, $"收到期望响应: {response.Command}");
+                        LogMessage?.Invoke(this, $"收到响应: 命令字：{response.Command}");
+                        // 特殊处理 进入boot时接收下位机发送设备信息
+
                     }      
                     return response;
                 }
             }
             catch (TimeoutException)
             {
-                if (attempt == retryCount - 1)
+                if (attempt == retryCount)
                 {
-                    ErrorOccurred?.Invoke(this, $"命令 {sendFrame.Command} 响应超时，已重试{retryCount}次");
+                    //ErrorOccurred?.Invoke(this, $"命令 {sendFrame.Command} 响应超时，已重试{retryCount}次");
+                    LogMessage?.Invoke(this, $"命令 {sendFrame.Command} 响应超时，已重试{retryCount}次");
                     throw;
                 }
-                LogMessage?.Invoke(this, $"第{attempt + 1}次尝试超时，准备重试");
+                else
+                {
+                    LogMessage?.Invoke(this, $"第{attempt}次尝试超时，准备重试");
+                }
             }
             catch (Exception ex)
             {
-                if (attempt == retryCount - 1)
+                if (attempt == retryCount)
                 {
                     ErrorOccurred?.Invoke(this, $"发送命令失败: {ex.Message}");
                     throw;
                 }
-                LogMessage?.Invoke(this, $"第{attempt + 1}次尝试失败: {ex.Message}，准备重试");
+                else
+                {
+                    LogMessage?.Invoke(this, $"第{attempt}次尝试失败: {ex.Message}，准备重试");
+                }
+                    
             }
 
             // 重试前等待
-            if (attempt < retryCount - 1)
+            if (attempt < retryCount)
             {
                 await Task.Delay(100);
             }
@@ -183,7 +198,9 @@ public class BootTransfer : IDisposable
                 if (_responseReceived && _lastReceivedFrame != null)
                 {
                     // 检查是否是我们期望的命令类型
-                    if (_lastReceivedFrame.Command == expectedCommand || _lastReceivedFrame.Command == CommandType.ErrorResponse)
+                    if (_lastReceivedFrame.Command == expectedCommand 
+                        || _lastReceivedFrame.Command == CommandType.ErrorResponse
+                        || _lastReceivedFrame.Command == CommandType.Nack)
                     {
                         var response = _lastReceivedFrame;
                         ResetResponseState(); // 重置状态以便下次使用
@@ -234,12 +251,12 @@ public class BootTransfer : IDisposable
     }
 
     /// <summary>
-    /// 解析错误信息
+    /// 解析命令帧携带信息
     /// </summary>
     private string ParseErrorMessage(CommandFrame errorFrame)
     {
         if (errorFrame.Data == null || errorFrame.Data.Length == 0)
-            return "未知错误信息";
+            return "未知信息";
 
         try
         {
@@ -247,7 +264,7 @@ public class BootTransfer : IDisposable
         }
         catch
         {
-            return "错误信息无法解析";
+            return "信息无法解析";
         }
     }
 

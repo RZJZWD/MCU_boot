@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Policy;
 using System.Text;
@@ -122,15 +123,17 @@ namespace MCUBoot.DateModels
         /// <summary>
         /// 应答，正向
         /// </summary>
-        Ack = 0x06,
+        Ack = 0x05,
         /// <summary>
         /// 应答，有错误
         /// </summary>
-        Nack = 0x07,
+        Nack = 0x06,
         /// <summary>
         /// 错误响应命令
         /// </summary>
-        ErrorResponse = 0xFF      
+        ErrorResponse = 0x07,
+        //未知命令，测试
+        unknow = 0x77
     }
 
     /// <summary>
@@ -174,7 +177,7 @@ namespace MCUBoot.DateModels
                 bytes.AddRange(Data);
             }
 
-            // 计算校验和 (从命令字到数据结束的累加和取反)
+            // 计算校验和 (从命令字到数据结束的累加和取反，不含帧头)
             byte checksum = CalculateChecksum(bytes.Skip(2).ToArray());
             bytes.Add(checksum);
 
@@ -244,12 +247,74 @@ namespace MCUBoot.DateModels
     /// </summary>
     public class DeviceInfo
     {
+        // 固定长度定义
+        private const int MODEL_LENGTH = 32;        // 型号名称固定32字节
+        private const int BOOT_VERSION_LENGTH = 16; // 引导版本固定16字节
+        private const int DeviceInfoSize = MODEL_LENGTH + sizeof(uint) + sizeof(uint) + BOOT_VERSION_LENGTH;
         public string Model { get; set; } = "";
         public uint FlashSize { get; set; }
         public uint AppAddress { get; set; }
         public string BootVersion { get; set; } = "";
+
+        /// <summary>
+        /// 小端序
+        /// </summary>
+        /// <returns>字节数组</returns>
+        public byte[] ToBytes()
+        {                
+            using(MemoryStream ms = new MemoryStream())
+            using(BinaryWriter bw = new BinaryWriter(ms))
+            {
+                // 写入model字节，固定32字节，右填充
+                byte[] modelBytes = Encoding.UTF8.GetBytes(Model.PadRight(MODEL_LENGTH,'\0'));
+                bw.Write(modelBytes,0,MODEL_LENGTH);
+                // 写入FlashSize，4字节
+                bw.Write(FlashSize);
+                // 写入AppAddress，4字节  
+                bw.Write(AppAddress);
+                // 写入BootVersion，固定16字节
+                byte[] bootVersionBytes = Encoding.UTF8.GetBytes(BootVersion.PadRight(BOOT_VERSION_LENGTH,'\0'));
+                bw.Write(bootVersionBytes, 0, BOOT_VERSION_LENGTH);
+
+                return ms.ToArray();
+            }
+        }
+        /// <summary>
+        /// 小端序
+        /// </summary>
+        /// <param name="data">字节数组</param>
+        /// <returns>DeviceInfo类</returns>
+        /// <exception cref="ArgumentException"></exception>
+        public void FromBytes(byte[] data)
+        {
+            if (data == null || data.Length != DeviceInfoSize)
+            {
+                throw new ArgumentException("无效的字节数组长度");
+            }
+            using (MemoryStream ms = new MemoryStream(data))
+            using (BinaryReader reader = new BinaryReader(ms))
+            {
+
+                // 读取Model
+                byte[] modelBytes = reader.ReadBytes(MODEL_LENGTH);
+                Model = Encoding.UTF8.GetString(modelBytes).TrimEnd('\0');
+
+                // 读取FlashSize
+                FlashSize = reader.ReadUInt32();
+
+                // 读取AppAddress
+                AppAddress = reader.ReadUInt32();
+
+                // 读取BootVersion
+                byte[] bootVersionBytes = reader.ReadBytes(BOOT_VERSION_LENGTH);
+                BootVersion = Encoding.UTF8.GetString(bootVersionBytes).TrimEnd('\0');
+            }
+        }
     }
 
+    /// <summary>
+    /// 命令调度控制项
+    /// </summary>
     public class BootCommandItem
     {
         /// <summary>
@@ -307,6 +372,10 @@ namespace MCUBoot.DateModels
             } 
         }
     }
+
+    /// <summary>
+    /// 回应动作，针对不同回应给出操作
+    /// </summary>
     public enum ResponseAction
     {
         /// <summary>

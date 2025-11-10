@@ -13,7 +13,7 @@ namespace MCUBoot.Services.BootService
         private readonly BootTransfer _bootTransfer;
         private readonly Queue<BootCommandItem> _commandQueue;
         private bool _isExecuting;                              //正在执行中
-        private bool _stopSchedule = false;                       //是否停止调度
+        private bool _stopSchedule = false;                     //是否停止调度
         private string deviceErrorMessage = string.Empty;       //设备错误信息
         private readonly object _lock = new object();
 
@@ -196,12 +196,7 @@ namespace MCUBoot.Services.BootService
                         return result;
                     }
 
-                    // 保存响应
-                    result.Success = true;
-                    result.Responses.Add(response);
-                    result.ExecutedCount++;
-
-                    // 执行响应处理回调
+                    // 回应不为空，执行回应处理回调
                     ResponseAction action = ResponseAction.Continue;
                     try
                     {
@@ -251,12 +246,28 @@ namespace MCUBoot.Services.BootService
             LogMessage?.Invoke(this, "队列已停止执行并清空");
         }
 
+        /// <summary>
+        /// 处理回应动作
+        /// </summary>
+        /// <param name="result">调度结果</param>
+        /// <param name="action">回应动作，每个命令项都有回调来处理不同接受命令字的对应动作</param>
+        /// <param name="response">回应命令帧</param>
+        /// <param name="CommandItem">当前调度的命令项目</param>
+        /// <returns></returns>
         private BootCommandResult HandlerResponseAction(BootCommandResult result, ResponseAction action, CommandFrame response, BootCommandItem CommandItem)
         {            
             // 根据回调结果执行相应动作
             switch (action)
             {
                 case ResponseAction.Continue:
+                    if (response.Command == CommandType.EnterBoot)
+                    {
+                        DeviceInfo deviceInfo = new();
+                        deviceInfo.FromBytes(response.Data);
+                        string deviceString = ShowDeviceInfo(deviceInfo);
+                        LogMessage?.Invoke(this, deviceString);
+                    }
+                    result.Success = true;
                     result.Responses.Add(response);
                     result.ExecutedCount++;
                     break;
@@ -271,6 +282,7 @@ namespace MCUBoot.Services.BootService
                             _commandQueue.Enqueue(retryCommand);
                             result.TotalCount++; // 更新总命令数
                         }
+                        LogMessage?.Invoke(this, "重试");
                     }
                     else
                     {
@@ -280,7 +292,7 @@ namespace MCUBoot.Services.BootService
 
                 case ResponseAction.Stop:
                     result.Success = false;
-                    result.ErrorMessage = deviceErrorMessage;
+                    result.ErrorMessage = deviceErrorMessage;   //将设备错误信息存到调度结果中
                     result.Responses.Add(response);
                     result.ExecutedCount++;
                     lock (_lock) { _commandQueue.Clear(); }
@@ -292,6 +304,39 @@ namespace MCUBoot.Services.BootService
             }
 
             return result;
+        }
+
+        private string ShowDeviceInfo(DeviceInfo info)
+        {
+            if (info == null)
+                return "设备信息为空";
+            
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine(" ");
+            sb.AppendLine("=== 设备信息 ===");
+            sb.AppendLine($"设备型号: {info.Model}");
+            sb.AppendLine($"Flash大小: {info.FlashSize} bytes({FormatFileSize(info.FlashSize)})");
+            sb.AppendLine($"应用程序地址: 0x{info.AppAddress:X8}");
+            sb.AppendLine($"引导程序版本: {info.BootVersion}");
+
+            return sb.ToString();
+        }
+        /// <summary>
+        /// 格式化文件大小
+        /// </summary>
+        private string FormatFileSize(long bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB" };
+            int order = 0;
+            double size = bytes;
+
+            while (size >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                size = size / 1024;
+            }
+
+            return $"{size:0.##} {sizes[order]}";
         }
 
         #endregion
@@ -313,10 +358,11 @@ namespace MCUBoot.Services.BootService
         private void OnDeviceErrorReceived(object sender, string errorMessage)
         {
             LogMessage?.Invoke(this, $"[传输层] {errorMessage}");
-            //将设备错误信息同步到类中
+            //将设备错误信息同步到设备错误信息中
             deviceErrorMessage = errorMessage;
             //StopExecution();
         }
+
         #endregion
 
         public void Dispose()
