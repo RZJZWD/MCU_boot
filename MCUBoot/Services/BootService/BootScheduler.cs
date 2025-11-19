@@ -20,6 +20,7 @@ namespace MCUBoot.Services.BootService
         //事件
         public event EventHandler<string> LogMessage;
         public event EventHandler<string> ErrorOccurred;
+        public event EventHandler<DeviceInfo> DeviceInfoChanged;
         public event EventHandler<CommandQueueProgressEventArgs> CommandProgressChanged;
 
         public BootScheduler(BootTransfer bootTransfer)
@@ -102,7 +103,7 @@ namespace MCUBoot.Services.BootService
         #endregion
 
         #region 调度器开始/停止
-        public async Task<BootCommandResult> StartAsync(DisplayConfig displayConfig)
+        public async Task<BootCommandResult> StartAsync()
         {
             _stopSchedule = false;
             if (_isExecuting)
@@ -133,7 +134,7 @@ namespace MCUBoot.Services.BootService
             try
             {
                 var tempTransferConfig = new BootTransferConfig();
-                tempTransferConfig.LineEnding = displayConfig.LineEnding;
+                //tempTransferConfig.LineEnding = displayConfig.LineEnding;
                 // 保存原始配置
                 var originalConfig = _bootTransfer.GetTransferConfig();
                 var originalTimeout = originalConfig?.Timeout ?? 3000;
@@ -264,8 +265,7 @@ namespace MCUBoot.Services.BootService
                     {
                         DeviceInfo deviceInfo = new();
                         deviceInfo.FromBytes(response.Data);
-                        string deviceString = ShowDeviceInfo(deviceInfo);
-                        LogMessage?.Invoke(this, deviceString);
+                        DeviceInfoChanged?.Invoke(this, deviceInfo); 
                     }
                     result.Success = true;
                     result.Responses.Add(response);
@@ -306,38 +306,7 @@ namespace MCUBoot.Services.BootService
             return result;
         }
 
-        private string ShowDeviceInfo(DeviceInfo info)
-        {
-            if (info == null)
-                return "设备信息为空";
-            
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine(" ");
-            sb.AppendLine("=== 设备信息 ===");
-            sb.AppendLine($"设备型号: {info.Model}");
-            sb.AppendLine($"Flash大小: {info.FlashSize} bytes({FormatFileSize(info.FlashSize)})");
-            sb.AppendLine($"应用程序地址: 0x{info.AppAddress:X8}");
-            sb.AppendLine($"引导程序版本: {info.BootVersion}");
-
-            return sb.ToString();
-        }
-        /// <summary>
-        /// 格式化文件大小
-        /// </summary>
-        private string FormatFileSize(long bytes)
-        {
-            string[] sizes = { "B", "KB", "MB", "GB" };
-            int order = 0;
-            double size = bytes;
-
-            while (size >= 1024 && order < sizes.Length - 1)
-            {
-                order++;
-                size = size / 1024;
-            }
-
-            return $"{size:0.##} {sizes[order]}";
-        }
+        
 
         #endregion
 

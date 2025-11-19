@@ -44,9 +44,6 @@ namespace MCUBoot
 
         //UI状态
         private StringBuilder _receivedTextBuilder;
-
-        private uint appLoadAddr = 0x08000000;
-        private int packetSize = 256;
         
         public MainWindow()
         {
@@ -127,6 +124,8 @@ namespace MCUBoot
             _bootService.LogMessage += OnBootLogMessage;
             _bootService.ErrorOccurred += OnBootErrorOccurred;
             _bootService.FirmwareLoaded += OnFirmwareLoaded;
+            _bootService.ProgressChanged += OnBootProgressChanged;
+            _bootService.StatusChanged += OnBootStatusChanged;
         }
         /// <summary>
         /// 根据各服务的配置更新UI
@@ -305,59 +304,6 @@ namespace MCUBoot
 
         #endregion
 
-        private void BtnTest_Click(object sender, RoutedEventArgs e)
-        {
-            string errorMessage = "device";
-            var customCommand1 = new BootCommandItem
-            {
-                SendCommand = CommandType.Ack,
-                ResponseCommand = CommandType.Ack,
-                SendData = Encoding.UTF8.GetBytes(errorMessage),
-                Description = "发送ACK命令，期望回复ack，预计回复ack",
-                TransferTimeoutMs = 2000,
-                TransferRetryCount = 0,
-                ResponseHandler = (response) =>
-                {
-                    if (response.Command == CommandType.Ack)
-                    {
-                        return ResponseAction.Continue;
-                    }
-                    if (response.Command == CommandType.ErrorResponse)
-                    {
-                        // 验证失败，停止
-                        return ResponseAction.Stop;
-                    }
-                    return ResponseAction.Stop;
-                }
-            };
-            var customCommand2 = new BootCommandItem
-            {
-                SendCommand = CommandType.EnterBoot,
-                ResponseCommand = CommandType.EnterBoot,
-                Description = "发送EnterBoot命令，期望回复EnterBoot，带设备信息",
-                TransferTimeoutMs = 2000,
-                TransferRetryCount = 0,
-                ResponseHandler = (response) =>
-                {
-                    if (response.Command == CommandType.EnterBoot)
-                    {
-                        return ResponseAction.Continue;
-                    }
-                    if (response.Command == CommandType.ErrorResponse)
-                    {
-                        // 验证失败，停止
-                        return ResponseAction.Stop;
-                    }
-                    return ResponseAction.Stop;
-                }
-            };
-
-            _bootService.AddCommand(customCommand2);
-            _bootService.AddCommand(customCommand1);  
-            
-            _bootService.StartTransfer(_DisplayConfig);
-        }
-
         #region UI控制
         /// <summary>
         /// 加载可用串口列表
@@ -390,6 +336,7 @@ namespace MCUBoot
             cmbStopBits.IsEnabled = !isConnected;
             cmbParity.IsEnabled = !isConnected;
         } 
+        
         /// <summary>
         /// 更新暂停显示按钮
         /// </summary>
@@ -400,6 +347,7 @@ namespace MCUBoot
             BtnPauseShowReceived.Background = isPaused ? Brushes.Orange : Brushes.LightGreen;
             BtnPauseShowReceived.Foreground = isPaused ? Brushes.White : Brushes.Black;
         }
+        
         /// <summary>
         /// 跟新自动发送的UI
         /// </summary>
@@ -541,26 +489,33 @@ namespace MCUBoot
         /// <param name="text">文本</param>
         private void AppendToReceivedText(string text)
         {
-            text = text.Trim();
+            //text = text.Trim();
 
-            if (!string.IsNullOrEmpty(text))
-            {
-                comReceived.Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    if (_receivedTextBuilder.Length > 0 && _DisplayConfig.AutoWrap)
-                    {
-                        _receivedTextBuilder.AppendLine();
-                    }
+            //if (!string.IsNullOrEmpty(text))
+            //{
+            //    comReceived.Dispatcher.BeginInvoke(new Action(() =>
+            //    {
+            //        if (_receivedTextBuilder.Length > 0 && _DisplayConfig.AutoWrap)
+            //        {
+            //            _receivedTextBuilder.AppendLine();
+            //        }
 
-                    _receivedTextBuilder.Append(text);
-                    comReceived.Text = _receivedTextBuilder.ToString();
+            //        _receivedTextBuilder.Append(text);
+            //        comReceived.Text = _receivedTextBuilder.ToString();
 
-                    if (_DisplayConfig.AutoScroll)
-                    {
-                        comReceived.ScrollToEnd();
-                    }
-                }));
-            }
+            //        if (_DisplayConfig.AutoScroll)
+            //        {
+            //            comReceived.ScrollToEnd();
+            //        }
+            //    }));
+            //}
+            if (string.IsNullOrEmpty(text)) return;
+
+            comReceived.Dispatcher.BeginInvoke(new Action(() => {
+                comReceived.AppendText(text + Environment.NewLine);
+                if (_DisplayConfig.AutoScroll)
+                    comReceived.ScrollToEnd();
+            }), System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private void BtnClearReceivedArea_Click(object sender, RoutedEventArgs e)
@@ -756,7 +711,7 @@ namespace MCUBoot
                     var transferConfig = _bootService.GetTransferConfig();
                     
                     // 加载固件
-                    if (_bootService.LoadFirmware(filePath, packetSize, appLoadAddr))
+                    if (_bootService.LoadFirmware(filePath))
                     {
                         txtFirmwareFile.Text = System.IO.Path.GetFileName(filePath);
                     }
@@ -766,6 +721,25 @@ namespace MCUBoot
             {
                 MessageBox.Show($"选择固件文件失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+        private void BtnEnterBoot_Click(object sender, RoutedEventArgs e)
+        {
+            _bootService.EnterBootCommandAsync();
+        }
+        private async void BtnUploadFirmware_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                await _bootService.UploadBootCommandAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"上传失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        private void BtnRunApplication_Click(object sender, RoutedEventArgs e)
+        {
+            _bootService.RunAppCommandAsync();
         }
         #endregion
 
@@ -1016,6 +990,6 @@ namespace MCUBoot
             base.OnClosed(e);
         }
 
-        
+
     }
 }

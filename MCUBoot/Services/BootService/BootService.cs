@@ -27,6 +27,9 @@ namespace MCUBoot.Services.BootService
         public event EventHandler<int> ProgressChanged;
         public event EventHandler<CommandQueueProgressEventArgs> CommandProgressChanged;
 
+        private int packetSize = 0;
+        private uint appLoadAddr = 0;
+
         public BootService(SerialPortService serialPortService)
         {
             _bootFirmware = new BootFirmware();
@@ -103,13 +106,51 @@ namespace MCUBoot.Services.BootService
                 LogMessage?.Invoke(this, $"状态更新: {status}");
             }
         }
+        /// <summary>
+        /// 显示设备信息
+        /// </summary>
+        /// <param name="info">设备信息</param>
+        /// <returns>字符串</returns>
+        private string ShowDeviceInfo(DeviceInfo info)
+        {
+            if (info == null)
+                return "设备信息为空";
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine(" ");
+            sb.AppendLine("=== 设备信息 ===");
+            sb.AppendLine($"设备型号: {info.Model}");
+            sb.AppendLine($"Flash大小: {info.FlashSize} bytes({FormatFileSize(info.FlashSize)})");
+            sb.AppendLine($"应用程序地址: 0x{info.AppAddress:X8}");
+            sb.AppendLine($"固件分包大小: {info.FirmwarePacketSize}");
+            sb.AppendLine($"引导程序版本: {info.BootVersion}");
+
+            return sb.ToString();
+        }
+        /// <summary>
+        /// 格式化文件大小
+        /// </summary>
+        private string FormatFileSize(long bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB" };
+            int order = 0;
+            double size = bytes;
+
+            while (size >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                size = size / 1024;
+            }
+
+            return $"{size:0.##} {sizes[order]}";
+        }
         #endregion
 
         #region 固件操作接口
         /// <summary>
         /// 加载固件文件
         /// </summary>
-        public bool LoadFirmware(string filePath, int packetSize, uint appLoadAddr)
+        public bool LoadFirmware(string filePath)
         {
             LogMessage?.Invoke(this, $"开始固件加载流程...");
 
@@ -150,7 +191,7 @@ namespace MCUBoot.Services.BootService
             return result;
         }
         /// <summary>
-        /// 获取固件包
+        /// 获取固件包，[包索引(4字节)] [包总数(4字节)] [CRC32(4字节)][包数据(N字节)]
         /// </summary>
         /// <param name="packetIndex">固件包索引</param>
         /// <returns></returns>
@@ -158,6 +199,15 @@ namespace MCUBoot.Services.BootService
         {
             LogMessage?.Invoke(this, $"获取固件包({packetIndex + 1}/{_bootFirmware.GetTotalPackets()})");
             return _bootFirmware.BuildFirmwarePacket(packetIndex);
+        }
+
+        /// <summary>
+        /// 获取固件总包数
+        /// </summary>
+        /// <returns>固件总包数</returns>
+        public int GetFirmwareTotalPacket()
+        {
+            return _bootFirmware.GetTotalPackets();
         }
         #endregion
 
@@ -186,12 +236,15 @@ namespace MCUBoot.Services.BootService
         /// <summary>
         /// 开始执行命令队列
         /// </summary>
-        public async Task<BootCommandResult> StartTransfer(DisplayConfig displayConfig)
+        public async Task<BootCommandResult> StartScheduler()
         {
             try
             {
                 UpdateStatus(BootStatus.Transfer);
-                var result = await _bootScheduler.StartAsync(displayConfig);
+                var result = await Task.Run(async () =>
+                {
+                    return await _bootScheduler.StartAsync();
+                });
 
                 if (result.Success)
                 {
@@ -282,14 +335,12 @@ namespace MCUBoot.Services.BootService
             _bootFirmware.LogMessage += OnBootFirmwareLogMessage;
             _bootFirmware.ErrorOccurred += OnBootFirmwareErrorOccurred;
 
-            //// 传输组件事件
-            //_bootTransfer.LogMessage += OnBootTransferLogMessage;
-            //_bootTransfer.ErrorOccurred += OnBootTransferErrorOccurred;
-
             // 调度组件事件
             _bootScheduler.LogMessage += OnBootSchedulerLogMessage;
             _bootScheduler.ErrorOccurred += OnBootSchedulerErrorOccurred;
+            _bootScheduler.DeviceInfoChanged += OnBootSchedulerGetDeviceInfo;
             _bootScheduler.CommandProgressChanged += OnBootSchedulerCommandProgressChanged;
+           
         }
 
         private void OnBootFirmwareLogMessage(object sender, string message)
@@ -303,17 +354,6 @@ namespace MCUBoot.Services.BootService
             UpdateStatus(BootStatus.Error);
         }
 
-        //private void OnBootTransferLogMessage(object sender, string message)
-        //{
-        //    LogMessage?.Invoke(this, $"[传输服务] {message}");
-        //}
-
-        //private void OnBootTransferErrorOccurred(object sender, string errorMessage)
-        //{
-        //    ErrorOccurred?.Invoke(this, $"[传输服务] {errorMessage}");
-        //    UpdateStatus(BootStatus.Error);
-        //}
-
         private void OnBootSchedulerLogMessage(object sender, string message)
         {
             LogMessage?.Invoke(this, $"[调度服务] {message}");
@@ -324,7 +364,13 @@ namespace MCUBoot.Services.BootService
             ErrorOccurred?.Invoke(this, $"[调度服务] {errorMessage}");
             UpdateStatus(BootStatus.Error);
         }
-
+        private void OnBootSchedulerGetDeviceInfo(object sender, DeviceInfo info)
+        {
+            string deviceInfoStr = ShowDeviceInfo(info);
+            packetSize = (int)info.FirmwarePacketSize;
+            appLoadAddr = info.AppAddress;
+            LogMessage?.Invoke(this, deviceInfoStr);
+        }
         private void OnBootSchedulerCommandProgressChanged(object sender, CommandQueueProgressEventArgs e)
         {
             CommandProgressChanged?.Invoke(this, e);
@@ -332,11 +378,38 @@ namespace MCUBoot.Services.BootService
         }
         #endregion
 
-        #region 添加指定任务
-        public void AddEnterBootCommand()
+        #region 添加并执行指定任务
+        public async Task EnterBootCommandAsync()
         {
             BootCommandItem cmd = _bootTasks.CreatEnterBootModeCommand();
             AddCommand(cmd);
+            await StartScheduler();
+        }
+        public async Task UploadBootCommandAsync()
+        {
+            if (!HasFirmwareLoaded())
+                throw new InvalidOperationException("固件未加载，无法上传。");
+
+            int totalPackets = GetFirmwareTotalPacket();
+            var commands = new List<BootCommandItem>();
+            var bootTasks = new BootTasks(); // 或通过依赖注入传入
+
+            for (int i = 0; i < totalPackets; i++)
+            {
+                byte[] packetData = GetFirmwarePacket(i);
+                var uploadCmd = bootTasks.CreatUploadCommand(packetData);
+                uploadCmd.Description = $"上传固件包 {i + 1}/{totalPackets}";
+                commands.Add(uploadCmd);
+            }
+
+            AddCommands(commands);
+            await StartScheduler();
+        }
+        public async Task RunAppCommandAsync()
+        {
+            BootCommandItem cmd = _bootTasks.CreatRunAppCommand();
+            AddCommand(cmd);
+            await StartScheduler();
         }
         #endregion
     }

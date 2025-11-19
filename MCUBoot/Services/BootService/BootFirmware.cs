@@ -66,7 +66,11 @@ namespace MCUBoot.Services.BootService
                     ErrorOccurred?.Invoke(this, $"固件文件不存在: {filePath}");
                     return false;
                 }
-
+                if (packetSize == 0 || appLoadAddr == 0)
+                {
+                    ErrorOccurred?.Invoke(this, $"请先获取设备信息");
+                    return false;
+                }
                 //文件消息
                 FileInfo fileInfo = new FileInfo(filePath);
 
@@ -366,12 +370,12 @@ namespace MCUBoot.Services.BootService
             return $"{size:0.##} {sizes[order]}";
         }
         /// <summary>
-        /// 按照指定结构打包：包索引 + 包总数 + 包数据 + CRC32
+        /// 按照指定结构打包：包索引 + 包总数 + CRC32 + 包数据
         /// </summary>
         private byte[] PackData(int packetIndex, int totalPackets, byte[] packetData, uint crc32)
         {
             // 包结构（严格按照要求）：
-            // [包索引(4字节)] [包总数(4字节)] [包数据(N字节)] [CRC32(4字节)]
+            // [包索引(4字节)] [包总数(4字节)] [CRC32(4字节)] [包数据(N字节)] 
 
             // 计算总长度
             int totalLength = 4 + 4 + packetData.Length + 4; // 索引4 + 总数4 + 数据N + CRC4
@@ -390,14 +394,13 @@ namespace MCUBoot.Services.BootService
             Array.Copy(totalBytes, 0, result, offset, 4);
             offset += 4;
 
-            // 3. 包数据 (N字节)
-            Array.Copy(packetData, 0, result, offset, packetData.Length);
-            offset += packetData.Length;
-
-            // 4. CRC32 (4字节)
+            // 3. CRC32 (4字节)
             byte[] crcBytes = BitConverter.GetBytes(crc32);
             Array.Copy(crcBytes, 0, result, offset, 4);
-
+            offset += 4;
+          
+            // 4. 包数据 (N字节)
+            Array.Copy(packetData, 0, result, offset, packetData.Length);
             return result;
         }
 

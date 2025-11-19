@@ -250,10 +250,11 @@ namespace MCUBoot.DateModels
         // 固定长度定义
         private const int MODEL_LENGTH = 32;        // 型号名称固定32字节
         private const int BOOT_VERSION_LENGTH = 16; // 引导版本固定16字节
-        private const int DeviceInfoSize = MODEL_LENGTH + sizeof(uint) + sizeof(uint) + BOOT_VERSION_LENGTH;
+        private const int DeviceInfoSize = MODEL_LENGTH + sizeof(uint) + sizeof(uint) + sizeof(uint) + BOOT_VERSION_LENGTH;
         public string Model { get; set; } = "";
         public uint FlashSize { get; set; }
         public uint AppAddress { get; set; }
+        public uint FirmwarePacketSize { get; set; }
         public string BootVersion { get; set; } = "";
 
         /// <summary>
@@ -272,6 +273,8 @@ namespace MCUBoot.DateModels
                 bw.Write(FlashSize);
                 // 写入AppAddress，4字节  
                 bw.Write(AppAddress);
+                // 写入固件包大小信息，4字节  
+                bw.Write(FirmwarePacketSize);
                 // 写入BootVersion，固定16字节
                 byte[] bootVersionBytes = Encoding.UTF8.GetBytes(BootVersion.PadRight(BOOT_VERSION_LENGTH,'\0'));
                 bw.Write(bootVersionBytes, 0, BOOT_VERSION_LENGTH);
@@ -304,6 +307,9 @@ namespace MCUBoot.DateModels
 
                 // 读取AppAddress
                 AppAddress = reader.ReadUInt32();
+
+                // 读取FirmwarePacketSize
+                FirmwarePacketSize = reader.ReadUInt32();
 
                 // 读取BootVersion
                 byte[] bootVersionBytes = reader.ReadBytes(BOOT_VERSION_LENGTH);
@@ -358,18 +364,32 @@ namespace MCUBoot.DateModels
         /// </summary>
         public Func<CommandFrame, ResponseAction> ResponseHandler { get; set; }
 
-        public BootCommandItem CreateRetryCommand(BootCommandItem BCI)
+        public BootCommandItem CreateRetryCommand(BootCommandItem original)
         {
-            int maxRetryCount = BCI.ScheduleRetryCount ?? BCI.defaultScheduleRetryCount; // 默认重试3次
-            if (BCI.currentScheduleRetryCount < maxRetryCount)
-            {
-                BCI.currentScheduleRetryCount++;
-                return BCI;
-            }
-            else
-            {
+            //int maxRetryCount = BCI.ScheduleRetryCount ?? BCI.defaultScheduleRetryCount; // 默认重试3次
+            //if (BCI.currentScheduleRetryCount < maxRetryCount)
+            //{
+            //    BCI.currentScheduleRetryCount++;
+            //    return BCI;
+            //}
+            //else
+            //{
+            //    return null;
+            //}
+            if (ScheduleRetryCount <= 0)
                 return null;
-            } 
+
+            return new BootCommandItem
+            {
+                SendCommand = original.SendCommand,
+                ResponseCommand = original.ResponseCommand,
+                SendData = original.SendData,
+                Description = $"{original.Description} (重试)",
+                TransferTimeoutMs = original.TransferTimeoutMs,
+                TransferRetryCount = original.TransferRetryCount,
+                ScheduleRetryCount = original.ScheduleRetryCount - 1, // 减少重试次数
+                ResponseHandler = original.ResponseHandler
+            };
         }
     }
 

@@ -15,55 +15,85 @@ namespace MCUBoot.Services.BootService
         /// <returns></returns>
         public BootCommandItem CreatEnterBootModeCommand()
         {
-            BootCommandItem EnterBoot = new BootCommandItem();
-            EnterBoot.Description = "下位机进入Boot";
-            EnterBoot.SendCommand = CommandType.EnterBoot;
-            EnterBoot.ResponseCommand = CommandType.EnterBoot;
-            EnterBoot.TransferTimeoutMs = 1000;
-            EnterBoot.TransferRetryCount = 3;
-            EnterBoot.ResponseHandler = (response) =>
+            var enterBootCommand = new BootCommandItem()
             {
-                if (response.Command == CommandType.EnterBoot)
+                SendCommand = CommandType.EnterBoot,
+                ResponseCommand = CommandType.EnterBoot,
+                Description = "下位机进入Boot",
+                TransferTimeoutMs = 1000,
+                TransferRetryCount = 3,
+                ResponseHandler = (response) =>
                 {
-                    return ResponseAction.Continue;
-                }
-                if (response.Command == CommandType.Nack)
-                {
+                    if (response.Command == CommandType.EnterBoot)
+                    {
+                        return ResponseAction.Continue;
+                    }
+                    if (response.Command == CommandType.Nack)
+                    {
+                        return ResponseAction.Stop;
+                    }
+                    if (response.Command == CommandType.ErrorResponse)
+                    {
+                        return ResponseAction.Stop;
+                    }
                     return ResponseAction.Stop;
                 }
-                if(response.Command == CommandType.ErrorResponse)
-                {
-                    return ResponseAction.Stop;
-                }
-                return ResponseAction.Stop;
             };
-            return EnterBoot;
+
+            return enterBootCommand;
+        }
+        public BootCommandItem CreatUploadCommand(byte[] firmwareData)
+        {
+            var uploadCommand = new BootCommandItem
+            {
+                SendCommand = CommandType.Upload,
+                ResponseCommand = CommandType.Ack,
+                SendData = firmwareData,
+                Description = "发送固件包数据，期望回复Ack，预计回复ack",
+                TransferTimeoutMs = 2000,
+                TransferRetryCount = 0,
+                ScheduleRetryCount = 3,
+                ResponseHandler = (response) =>
+                {
+                    if (response.Command == CommandType.Ack)
+                    {
+                        return ResponseAction.Continue;
+                    }
+                    if (response.Command == CommandType.ErrorResponse)
+                    {
+                        // 验证失败，停止
+                        return ResponseAction.Retry;
+                    }
+                    return ResponseAction.Stop;
+                }
+            };
+
+            return uploadCommand;       
         }
         public BootCommandItem CreatRunAppCommand()
         {
-            BootCommandItem RunApp = new BootCommandItem();
-            RunApp.Description = "下位机运行app";
-            RunApp.SendCommand = CommandType.RunApp;
-            RunApp.ResponseCommand = CommandType.Ack;
-            RunApp.TransferTimeoutMs = 1000;
-            RunApp.TransferRetryCount = 3;
-            RunApp.ResponseHandler = (response) =>
+            var runAppCommand = new BootCommandItem
             {
-                if (response.Command == CommandType.Ack)
+                SendCommand = CommandType.RunApp,
+                ResponseCommand = CommandType.Ack,
+                Description = "跳转到应用程序，预计回复Ack",
+                TransferTimeoutMs = 1000,
+                TransferRetryCount = 0,
+                ResponseHandler = (response) =>
                 {
-                    return ResponseAction.Continue;
-                }
-                if (response.Command == CommandType.Nack)
-                {
+                    if (response.Command == CommandType.Ack)
+                    {
+                        return ResponseAction.Continue;
+                    }
+                    if (response.Command == CommandType.ErrorResponse)
+                    {
+                        return ResponseAction.Stop;
+                    }
                     return ResponseAction.Stop;
                 }
-                if (response.Command == CommandType.ErrorResponse)
-                {
-                    return ResponseAction.Stop;
-                }
-                return ResponseAction.Stop;
             };
-            return RunApp;
+
+            return runAppCommand;
         }
 
     }
