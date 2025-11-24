@@ -251,10 +251,25 @@ namespace MCUBoot.DateModels
         private const int MODEL_LENGTH = 32;        // 型号名称固定32字节
         private const int BOOT_VERSION_LENGTH = 16; // 引导版本固定16字节
         private const int DeviceInfoSize = MODEL_LENGTH + sizeof(uint) + sizeof(uint) + sizeof(uint) + BOOT_VERSION_LENGTH;
+        /// <summary>
+        /// 设备名
+        /// </summary>
         public string Model { get; set; } = "";
+        /// <summary>
+        /// 设备flash大小
+        /// </summary>
         public uint FlashSize { get; set; }
+        /// <summary>
+        /// 设备app加载地址
+        /// </summary>
         public uint AppAddress { get; set; }
+        /// <summary>
+        /// 固件分包大小
+        /// </summary>
         public uint FirmwarePacketSize { get; set; }
+        /// <summary>
+        /// boot程序版本
+        /// </summary>
         public string BootVersion { get; set; } = "";
 
         /// <summary>

@@ -160,6 +160,7 @@ namespace MCUBoot
         /// </summary>
         private void OnConnectionStateChanged(object sender, bool isConnected)
         {
+            //System.Diagnostics.Debug.WriteLine($"[UI] 收到连接状态变更: {isConnected}");
             Dispatcher.Invoke(() =>
             {
                 UpdateConnectionUI(isConnected);
@@ -216,7 +217,7 @@ namespace MCUBoot
         }
 
         /// <summary>
-        /// 当自动发送定时器触发时
+        /// 自动发送定时器触发时事件处理
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
@@ -246,7 +247,11 @@ namespace MCUBoot
             });
             RestoreAutoSend(1000);
         }
-
+        /// <summary>
+        /// boot日志信息事件处理
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="message">日志信息</param>
         private void OnBootLogMessage(object sender, string message)
         {
             Dispatcher.Invoke(() =>
@@ -255,6 +260,11 @@ namespace MCUBoot
             });
         }
 
+        /// <summary>
+        /// boot错误事件处理
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="errorMessage">错误信息</param>
         private void OnBootErrorOccurred(object sender, string errorMessage)
         {
             Dispatcher.Invoke(() =>
@@ -264,6 +274,11 @@ namespace MCUBoot
             });
         }
 
+        /// <summary>
+        /// boot固件加载事件处理
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="firmwareInfo">boot固件信息</param>
         private void OnFirmwareLoaded(object sender, FirmwareInfo firmwareInfo)
         {
             Dispatcher.Invoke(() =>
@@ -271,6 +286,11 @@ namespace MCUBoot
                 UpdateFirmwareUI(firmwareInfo);
             });
         }
+        /// <summary>
+        /// 当boot操作进度条参数更新事件
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="progress">百分比进度</param>
         private void OnBootProgressChanged(object sender, int progress)
         {
             Dispatcher.Invoke(() =>
@@ -278,7 +298,11 @@ namespace MCUBoot
                 progressBoot.Value = progress;
             });
         }
-
+        /// <summary>
+        /// boot状态改变处理
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="status"></param>
         private void OnBootStatusChanged(object sender, BootStatus status)
         {
             Dispatcher.Invoke(() =>
@@ -370,13 +394,17 @@ namespace MCUBoot
                 chkAutoSend.Unchecked += chkAutoSend_Changed;
             }
         }
+        /// <summary>
+        /// 当指定了文件保存路径时更新文件框
+        /// </summary>
+        /// <param name="config"></param>
         private void UpdateFileSavePathUI(FileConfig config)
         {
             FilePathTextBox.Text = Path.Combine(config.FilePath, config.FileName);
         }
 
         /// <summary>
-        /// 根据模式更新UI状态
+        /// 根据模式更新上位机UI状态
         /// </summary>
         private void UpdateModeUI(OperatModeConfig config)
         {
@@ -417,6 +445,11 @@ namespace MCUBoot
                 rbBootMode.Background = config.Mode == OperatingMode.Boot ? Brushes.LightGreen : Brushes.Transparent;
             });
         }
+
+        /// <summary>
+        /// 更新固件相关操作UI，固件没有加载时锁定固件相关按钮，但是初始化前端按钮时没有关闭按钮，没啥用
+        /// </summary>
+        /// <param name="firmwareInfo"></param>
         private void UpdateFirmwareUI(FirmwareInfo firmwareInfo)
         {
             try
@@ -434,7 +467,12 @@ namespace MCUBoot
             }
         }
 
-        private void rbSerialMode_Checked(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// 串口模式按键触发事件
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void RbSerialMode_Checked(object sender, RoutedEventArgs e)
         {
             if (_OperatModeConfig.Mode != OperatingMode.Serial)
             {
@@ -444,7 +482,12 @@ namespace MCUBoot
             }
         }
 
-        private void rbBootMode_Checked(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// boot模式按键触发事件
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void RbBootMode_Checked(object sender, RoutedEventArgs e)
         {
             if (_OperatModeConfig.Mode != OperatingMode.Boot)
             {
@@ -501,7 +544,7 @@ namespace MCUBoot
             //        }
 
             //        _receivedTextBuilder.Append(text);
-            //        comReceived.Text = _receivedTextBuilder.ToString();
+            //        comReceived.Text = _receivedTextBuilder.ToString();// 每次打印都要调用TextBuilder，费时间
 
             //        if (_DisplayConfig.AutoScroll)
             //        {
@@ -518,6 +561,11 @@ namespace MCUBoot
             }), System.Windows.Threading.DispatcherPriority.Background);
         }
 
+        /// <summary>
+        /// 清理接收区按键
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void BtnClearReceivedArea_Click(object sender, RoutedEventArgs e)
         {
             _receivedTextBuilder.Clear();
@@ -525,6 +573,11 @@ namespace MCUBoot
             _dataProcessService.ClearFrameBuffer();
         }
 
+        /// <summary>
+        /// 暂停接收按键，只是暂停显示
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void BtnPauseShowReceived_Click(object sender, RoutedEventArgs e)
         {
             _DisplayConfig.PauseShowReceived = !(_DisplayConfig.PauseShowReceived);
@@ -532,6 +585,11 @@ namespace MCUBoot
             UpdatePauseShowRecvUI(_DisplayConfig.PauseShowReceived);
         }
 
+        /// <summary>
+        /// 串口发送按键
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void BtnSend_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -544,18 +602,30 @@ namespace MCUBoot
             }
 
         }
-
+        /// <summary>
+        /// 串口清理发送区
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void BtnClearSendArea_Click(object sender, RoutedEventArgs e)
         {
             comSend.Text = "";
         }
-
+        /// <summary>
+        /// 接收解码选择
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void receDeCode_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_DisplayConfig == null) return;
             _DisplayConfig.ReceiveEncoding = GetReceiveEncodingTypeFromUI();
         }
-
+        /// <summary>
+        /// 发送编码选择
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void sendEnCode_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_DisplayConfig == null) return;
@@ -575,40 +645,69 @@ namespace MCUBoot
                     MessageBox.Show($"数据格式错误: {ex.Message}", "格式错误",
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                 }  
-            }
-            
-
+            }       
         }
+        /// <summary>
+        /// 行尾选择
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void cmbLineEnding_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_DisplayConfig == null) return;
             _DisplayConfig.LineEnding = GetLineEndingFromUI();
         }
 
+        /// <summary>
+        /// 自动换行选择
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void chkRecvAutoWrap_Changed(object sender, RoutedEventArgs e)
         {
             _DisplayConfig.AutoWrap = chkRecvAutoWrap.IsChecked ?? false;
         }
+        /// <summary>
+        /// 自动滚动选择
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void chkAutoScroll_Changed(object sender, RoutedEventArgs e)
         {
             _DisplayConfig.AutoScroll = chkAutoScroll.IsChecked ?? false;
         }
-
+        /// <summary>
+        /// 显示发送
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void chkShowSend_Changed(object sender, RoutedEventArgs e)
         {
             _DisplayConfig.ShowSend = chkShowSend.IsChecked ?? false;
         }
-
+        /// <summary>
+        /// 显示行号，暂不支持
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void chkRecvShowRowNum_Changed(object sender, RoutedEventArgs e)
         {
            _DisplayConfig.ShowRowNumbers=chkRecvShowRowNum.IsChecked ?? false;
         }
-
+        /// <summary>
+        /// 显示发送方向
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void chkRecvShowTxRx_Changed(object sender, RoutedEventArgs e)
         {
             _DisplayConfig.ShowTxRx = chkRecvShowTxRx.IsChecked ?? false;
         }
-
+        /// <summary>
+        /// 使能帧模式，也就是带帧头帧尾的发送模式
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void chkEnableFrame_Changed(object sender, RoutedEventArgs e)
         {
             _FrameConfig.Enabled = chkEnableFrame.IsChecked ?? false;
@@ -622,6 +721,11 @@ namespace MCUBoot
                 AppendToReceivedText("已关闭帧处理");
             }
         }
+        /// <summary>
+        /// 自动发送
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void chkAutoSend_Changed(object sender, RoutedEventArgs e)
         {
             _AutoSendConfig.Enabled = chkAutoSend.IsChecked ?? false;
@@ -637,7 +741,11 @@ namespace MCUBoot
                 AppendToReceivedText("已关闭自动发送");
             }
         }
-
+        /// <summary>
+        /// 保存接收区维文件，目前支持txt
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void BtnSaveRece2File_Click(object sender, RoutedEventArgs e)
         {
             //获取文件路径
@@ -663,6 +771,11 @@ namespace MCUBoot
                 
         }
 
+        /// <summary>
+        /// 浏览文件路径
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void BtnBrowseFilePath_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -692,6 +805,11 @@ namespace MCUBoot
             }
         }
 
+        /// <summary>
+        /// boot命令按钮：浏览固件文件
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void BtnBrowseFirmware_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -722,6 +840,11 @@ namespace MCUBoot
                 MessageBox.Show($"选择固件文件失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+        /// <summary>
+        /// boot命令按钮：进入boot模式
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void BtnEnterBoot_Click(object sender, RoutedEventArgs e)
         {
             _bootService.EnterBootCommandAsync();
@@ -737,6 +860,11 @@ namespace MCUBoot
                 MessageBox.Show($"上传失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+        /// <summary>
+        /// boot命令按钮：运行app
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void BtnRunApplication_Click(object sender, RoutedEventArgs e)
         {
             _bootService.RunAppCommandAsync();
@@ -797,7 +925,10 @@ namespace MCUBoot
                 _ => EncodingType.UTF8
             };
         }
-
+        /// <summary>
+        /// 从前端的行尾选择器获取行尾字符
+        /// </summary>
+        /// <returns></returns>
         private string GetLineEndingFromUI()
         {
             if (cmbLineEnding.SelectedItem is ComboBoxItem selectedItem)
@@ -819,6 +950,10 @@ namespace MCUBoot
         #endregion
 
         #region 辅助工具
+        /// <summary>
+        /// 发送数据
+        /// </summary>
+        /// <exception cref="ArgumentException">抛出没有打开串口</exception>
         private void SendData()
         {
             if (!_serialPortService.IsOpen)
@@ -881,6 +1016,10 @@ namespace MCUBoot
                 cmbPortName.SelectedIndex = 0;
         }
 
+        /// <summary>
+        /// 设置帧处理配置
+        /// </summary>
+        /// <param name="config"></param>
         private void SetFrameConfig(FrameConfig config)
         {
             if (config.Enabled)
@@ -900,6 +1039,10 @@ namespace MCUBoot
             _dataProcessService.SetFrameConfig(config);
         }
 
+        /// <summary>
+        /// 配置自动发送参数
+        /// </summary>
+        /// <param name="config"></param>
         private void SetAutoSendConfig(AutoSendConfig config)
         {
             if (config.Enabled)
@@ -917,18 +1060,28 @@ namespace MCUBoot
             _autoSendService.SetAutoSendConfig(config);
         }
 
+        /// <summary>
+        /// 设置接收区文件保存相关参数
+        /// </summary>
+        /// <param name="config"></param>
         private void SetFileConfig(FileConfig config)
         {
             config.FilePath = GetAppDir();
             _fileService.SetFileConfig(config);
             UpdateFileSavePathUI(config);
         }
-
+        /// <summary>
+        /// 设置boot服务参数
+        /// </summary>
+        /// <param name="config"></param>
         private void SetBootConfig(BootConfig config)
         {
             _bootService.SetBootConfig(config);
         }
-
+        /// <summary>
+        /// 获取当前程序运行位置，用于接收区保存文件时，就近放在上位机所在文件夹下
+        /// </summary>
+        /// <returns></returns>
         private string GetAppDir()
         {
             try

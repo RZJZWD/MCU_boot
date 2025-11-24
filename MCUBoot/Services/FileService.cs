@@ -18,6 +18,10 @@ namespace MCUBoot.Services
 
         private FileConfig _fileConfig;
 
+        /// <summary>
+        /// 设置串口文件服务配置
+        /// </summary>
+        /// <param name="config">文件配置</param>
         public void SetFileConfig(FileConfig config)
         {
             if (config == null) return;

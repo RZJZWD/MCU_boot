@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 
 namespace MCUBoot.DateModels
 {
-    //上位机模式
+    /// <summary>
+    /// 上位机模式控制
+    /// </summary>
     public class OperatModeConfig
     {
         public OperatingMode Mode { get; set; } = OperatingMode.Serial;
@@ -106,9 +108,18 @@ namespace MCUBoot.DateModels
         public int Interval { get; set; } = 0;
     }
 
+    /// <summary>
+    /// 串口文件配置
+    /// </summary>
     public class FileConfig
     {
+        /// <summary>
+        /// 文件名
+        /// </summary>
         public string FileName { get; set; } = "serial_data.txt";
+        /// <summary>
+        /// 文件路径
+        /// </summary>
         public string FilePath { get; set; } = "";
     }
 

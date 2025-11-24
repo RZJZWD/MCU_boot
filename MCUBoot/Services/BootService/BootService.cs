@@ -234,7 +234,7 @@ namespace MCUBoot.Services.BootService
             _bootScheduler.ClearCommandQueue();
         }     
         /// <summary>
-        /// 开始执行命令队列
+        /// 开始执行命令队列，异步方法，不阻塞UI更新
         /// </summary>
         public async Task<BootCommandResult> StartScheduler()
         {
@@ -343,27 +343,51 @@ namespace MCUBoot.Services.BootService
            
         }
 
+        /// <summary>
+        /// 转发boot固件相关日志
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="message">日志消息</param>
         private void OnBootFirmwareLogMessage(object sender, string message)
         {
             LogMessage?.Invoke(this, $"[固件服务] {message}");
         }
-
+        /// <summary>
+        /// 转发boot固件错误
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="errorMessage">错误消息</param>
         private void OnBootFirmwareErrorOccurred(object sender, string errorMessage)
         {
             ErrorOccurred?.Invoke(this, $"[固件服务] {errorMessage}");
             UpdateStatus(BootStatus.Error);
         }
 
+        /// <summary>
+        /// 转发boot命令调度器的日志消息
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="message"></param>
         private void OnBootSchedulerLogMessage(object sender, string message)
         {
             LogMessage?.Invoke(this, $"[调度服务] {message}");
         }
 
+        /// <summary>
+        /// 转发boot命令调度器的错误消息
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="errorMessage"></param>
         private void OnBootSchedulerErrorOccurred(object sender, string errorMessage)
         {
             ErrorOccurred?.Invoke(this, $"[调度服务] {errorMessage}");
             UpdateStatus(BootStatus.Error);
         }
+        /// <summary>
+        /// 从下位机设备获取设备信息
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="info">下位机设备信息</param>
         private void OnBootSchedulerGetDeviceInfo(object sender, DeviceInfo info)
         {
             string deviceInfoStr = ShowDeviceInfo(info);
@@ -371,6 +395,11 @@ namespace MCUBoot.Services.BootService
             appLoadAddr = info.AppAddress;
             LogMessage?.Invoke(this, deviceInfoStr);
         }
+        /// <summary>
+        /// 更新命令处理进度，调度器内部会更新，这里负责转发
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void OnBootSchedulerCommandProgressChanged(object sender, CommandQueueProgressEventArgs e)
         {
             CommandProgressChanged?.Invoke(this, e);
@@ -379,12 +408,21 @@ namespace MCUBoot.Services.BootService
         #endregion
 
         #region 添加并执行指定任务
+        /// <summary>
+        /// 进入boot模式
+        /// </summary>
+        /// <returns>命令调度控制项</returns>
         public async Task EnterBootCommandAsync()
         {
             BootCommandItem cmd = _bootTasks.CreatEnterBootModeCommand();
             AddCommand(cmd);
             await StartScheduler();
         }
+        /// <summary>
+        /// 上传固件，内部进行分包加载与命令添加
+        /// </summary>
+        /// <returns>命令调度控制项</returns>
+        /// <exception cref="InvalidOperationException">当固件未加载时抛出错误</exception>
         public async Task UploadBootCommandAsync()
         {
             if (!HasFirmwareLoaded())
@@ -405,6 +443,10 @@ namespace MCUBoot.Services.BootService
             AddCommands(commands);
             await StartScheduler();
         }
+        /// <summary>
+        /// 下位机运行app
+        /// </summary>
+        /// <returns>命令调度控制项</returns>
         public async Task RunAppCommandAsync()
         {
             BootCommandItem cmd = _bootTasks.CreatRunAppCommand();

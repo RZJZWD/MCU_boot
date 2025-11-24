@@ -17,9 +17,9 @@
         <!--模式切换-->
         <StackPanel Orientation="Horizontal" Grid.Row="0">
             <RadioButton x:Name="rbSerialMode" Content="串口模式" GroupName="OperatingMode" 
-                 Margin="10,2" Checked="rbSerialMode_Checked"/>
+                 Margin="10,2" Checked="RbSerialMode_Checked"/>
             <RadioButton x:Name="rbBootMode" Content="Boot模式" GroupName="OperatingMode" 
-                 Margin="10,2" Checked="rbBootMode_Checked"/>
+                 Margin="10,2" Checked="RbBootMode_Checked"/>
         </StackPanel>
 
         <!--中间区域-->

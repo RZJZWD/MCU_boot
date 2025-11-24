@@ -103,6 +103,12 @@ namespace MCUBoot.Services.BootService
         #endregion
 
         #region 调度器开始/停止
+
+        /// <summary>
+        /// 开启boot命令调度器
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException">重复开启调度，抛出异常</exception>
         public async Task<BootCommandResult> StartAsync()
         {
             _stopSchedule = false;
@@ -251,8 +257,8 @@ namespace MCUBoot.Services.BootService
         /// 处理回应动作
         /// </summary>
         /// <param name="result">调度结果</param>
-        /// <param name="action">回应动作，每个命令项都有回调来处理不同接受命令字的对应动作</param>
-        /// <param name="response">回应命令帧</param>
+        /// <param name="action">回应动作，每个命令项都有回调来在接受不同命令字时返回的对应动作</param>
+        /// <param name="response">传输层接收的命令帧</param>
         /// <param name="CommandItem">当前调度的命令项目</param>
         /// <returns></returns>
         private BootCommandResult HandlerResponseAction(BootCommandResult result, ResponseAction action, CommandFrame response, BootCommandItem CommandItem)

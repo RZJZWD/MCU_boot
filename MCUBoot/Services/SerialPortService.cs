@@ -45,7 +45,7 @@ namespace MCUBoot.Services
             _portCheckTimer.Elapsed += OnPortCheckTimerElapsed;
             _portCheckTimer.AutoReset = true;
             _portCheckTimer.Start();
-
+            //System.Diagnostics.Debug.WriteLine("[Service] SerialPortService 初始化，启动定时器");
             // 初始检查一次
             CheckAvailablePorts();
         }
@@ -63,20 +63,27 @@ namespace MCUBoot.Services
         /// </summary>
         private void CheckAvailablePorts()
         {
+            //System.Diagnostics.Debug.WriteLine($"[Service] 检测可用串口，当前 IsOpen: {_serialPort.IsOpen}, PortName: {_serialPort.PortName}");
             try
             {
-                string[] currentPorts = SerialPort.GetPortNames();
+                string[] availablePorts = SerialPort.GetPortNames();
 
-                // 检查端口列表是否发生变化
-                if (!ArePortArraysEqual(_lastAvailablePorts, currentPorts))
+                //热拔插检测：如果串口已打开，但其 PortName 不在可用列表中 → 被拔出
+                if (!_serialPort.IsOpen)
                 {
-                    _lastAvailablePorts = currentPorts;
-                    AvailablePortsChanged?.Invoke(this, currentPorts);
+                    AutoClose(); // 会触发 ConnectionStateChanged(false)
+                }
+
+                // 通知 UI 可用端口列表变化（用于刷新下拉框）
+                if (!ArePortArraysEqual(_lastAvailablePorts, availablePorts))
+                {
+                    _lastAvailablePorts = availablePorts;
+                    AvailablePortsChanged?.Invoke(this, availablePorts);
                 }
             }
             catch (Exception ex)
             {
-                ErrorOccurred?.Invoke(this, $"检查可用串口失败: {ex.Message}");
+                ErrorOccurred?.Invoke(this, $"定时检测失败: {ex.Message}");
             }
         }
         /// <summary>
@@ -117,6 +124,7 @@ namespace MCUBoot.Services
             catch (Exception ex)
             {
                 ErrorOccurred?.Invoke(this, $"打开串口失败：{ex.Message}");
+                
                 throw;
             }
         }
@@ -172,8 +180,18 @@ namespace MCUBoot.Services
             if (_serialPort.IsOpen)
             {
                 _serialPort.Close();
+                //System.Diagnostics.Debug.WriteLine("[Service] 串口已手动关闭，触发 ConnectionStateChanged(false)");
                 ConnectionStateChanged?.Invoke(this,false);
             }
+        }
+        /// <summary>
+        /// 关闭串口连接
+        /// </summary>
+        public void AutoClose()
+        {
+            _serialPort.Close();
+            //System.Diagnostics.Debug.WriteLine("[Service] 热拔插串口已关闭，触发 ConnectionStateChanged(false)");
+            ConnectionStateChanged?.Invoke(this, false);
         }
 
 
@@ -197,6 +215,11 @@ namespace MCUBoot.Services
                 throw;
             }
         }
+        /// <summary>
+        /// 发送一行数据
+        /// </summary>
+        /// <param name="data">数据</param>
+        /// <exception cref="InvalidOperationException"></exception>
         public void WriteLine(string data)
         {
             if (!_serialPort.IsOpen)
@@ -244,6 +267,8 @@ namespace MCUBoot.Services
             _portCheckTimer?.Dispose();
             _serialPort?.Close();
             _serialPort?.Dispose();
+            
+            
         }
     }
 

@@ -105,8 +105,9 @@ namespace MCUBoot.Services
         /// <summary>
         /// 处理发送数据，根据是否帧处理来选择是否添加帧头帧尾
         /// </summary>
-        /// <param name="data">原始数据</param>
-        /// <returns></returns>
+        /// <param name="sendText">需要发送的字符串</param>
+        /// <param name="displayConfig">帧处理设置</param>
+        /// <returns>处理好的字节</returns>
         public byte[] ProcessSendData(string sendText, DisplayConfig displayConfig)
         {
             byte[] data=DecodeData(sendText,displayConfig.SendEncoding);

@@ -94,8 +94,6 @@ public class BootTransfer : IDisposable
                 //byte[] combined = data.Concat(lineEndingBytes).ToArray();
                 //_serialPort.SendData(combined);
 
-
-
                 // 等待期望的响应
                 var response = await WaitForExpectedResponseAsync(timeoutMs, expectedCommand);
                 if (response != null)
@@ -185,7 +183,7 @@ public class BootTransfer : IDisposable
     }
 
     /// <summary>
-    /// 等待期望的响应
+    /// 等待期望的响应，如果是错误回应和Nack也会返回，作为非常规回应，需要特殊处理
     /// </summary>
     private async Task<CommandFrame> WaitForExpectedResponseAsync(int timeoutMs, CommandType expectedCommand)
     {
@@ -221,11 +219,15 @@ public class BootTransfer : IDisposable
         throw new TimeoutException($"等待期望响应 {expectedCommand} 超时: {timeoutMs}ms");
     }
 
+    /// <summary>
+    /// 当串口有接收时
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
     private void OnDataReceived(object sender, DataReceivedEventArgs e)
     {
         try
         {
-
             var frame = CommandFrame.FromBytes(e.Data);
             if (frame != null)
             {
@@ -245,6 +247,11 @@ public class BootTransfer : IDisposable
         }
     }
 
+    /// <summary>
+    /// 当串口有错误时
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="errorMessage"></param>
     private void OnSerialError(object sender, string errorMessage)
     {
         ErrorOccurred?.Invoke(this, $"[串口错误] {errorMessage}");
