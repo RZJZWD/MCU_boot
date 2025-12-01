@@ -6,6 +6,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+	  <PublishSingleFile>true</PublishSingleFile>
+	  <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+	  <!--SelfContained>true</SelfContained-->
+	  <!--PublishTrimmed>true</PublishTrimmed>
+	  <TrimMode>partial</TrimMode>
+	  <_SuppressWpfTrimError>true</_SuppressWpfTrimError>
+	  <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+	  <IncludeContentInSingleFile>true</IncludeContentInSingleFile>
+	  <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract-->
   </PropertyGroup>
 
   <ItemGroup>

@@ -138,6 +138,7 @@ namespace MCUBoot
             chkEnableDTR.IsChecked = _SerialPortConfig.EnableDTR;
             
             rbSerialMode.IsChecked = _OperatModeConfig.Mode == OperatingMode.Serial;
+            
             UpdateModeUI(_OperatModeConfig);
         }
 
@@ -1087,7 +1088,7 @@ namespace MCUBoot
             try
             {
                 //获取当前程序运行的完整路径，包含程序名 xxx.exe
-                string appPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                string appPath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
                 //提取完整路径的文件夹路径
                 string appDir = System.IO.Path.GetDirectoryName(appPath);
 

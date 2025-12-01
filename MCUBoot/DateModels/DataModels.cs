@@ -120,7 +120,7 @@ namespace MCUBoot.DateModels
         /// <summary>
         /// 文件路径
         /// </summary>
-        public string FilePath { get; set; } = "";
+        public string FilePath { get; set; } = string.Empty;
     }
 
     
