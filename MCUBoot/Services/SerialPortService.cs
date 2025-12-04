@@ -1,14 +1,15 @@
-﻿using System;
-using System.IO.Ports;
-using System.Timers;
+﻿using MCUBoot.DateModels;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MCUBoot.DateModels;
 using System.Diagnostics;
-using System.Threading.Channels;
+using System.IO;
+using System.IO.Ports;
+using System.Linq;
 using System.Linq.Expressions;
+using System.Text;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using System.Timers;
 
 namespace MCUBoot.Services
 {
@@ -20,6 +21,8 @@ namespace MCUBoot.Services
         private SerialPort _serialPort;
         private System.Timers.Timer _portCheckTimer= new System.Timers.Timer();
         private string[] _lastAvailablePorts=Array.Empty<string>();
+        private readonly object _receiveLock = new object();
+        private bool _isReceiving = false;
 
         //事件定义，数据接收 错误产生 连接状态改变 可用串口改变
         public event EventHandler<DataReceivedEventArgs> DataReceived;
@@ -31,7 +34,12 @@ namespace MCUBoot.Services
 
         public SerialPortService()
         {
-            _serialPort = new SerialPort();
+            _serialPort = new SerialPort()
+            {
+                ReadTimeout = 100,
+                WriteTimeout = 1000,
+                ReceivedBytesThreshold = 1
+            };
             _serialPort.DataReceived += OnDataReceived;
             InitializePortCheckTimer();
         }
@@ -143,6 +151,7 @@ namespace MCUBoot.Services
             _serialPort.StopBits = ParseStopBits(config.StopBits);
             _serialPort.Parity = ParseParity(config.Parity);
             _serialPort.DtrEnable = config.EnableDTR;
+            
         }
         /// <summary>
         /// 解析停止位字符串为枚举值
@@ -242,33 +251,125 @@ namespace MCUBoot.Services
         /// <summary>
         /// 数据接收事件处理
         /// </summary>
+        //private void OnDataReceived(object sender, SerialDataReceivedEventArgs e)
+        //{
+        //    try
+        //    {
+        //        // 获取当前可读字节数
+        //        int bytesToRead = _serialPort.BytesToRead;
+        //        if (bytesToRead <= 0) return;
+
+        //        // 创建缓冲区并读取数据
+        //        byte[] buffer = new byte[Math.Min(bytesToRead, BUFFER_SIZE)];
+        //        int bytesRead = _serialPort.Read(buffer, 0, buffer.Length);
+
+        //        // 处理接收到的数据
+        //        if (bytesRead > 0)
+        //        {
+        //            // 如果实际读取的字节数小于缓冲区大小，创建合适大小的数组
+        //            byte[] receivedData;
+        //            if (bytesRead < buffer.Length)
+        //            {
+        //                receivedData = new byte[bytesRead];
+        //                Array.Copy(buffer, 0, receivedData, 0, bytesRead);
+        //            }
+        //            else
+        //            {
+        //                receivedData = buffer;
+        //            }
+
+        //            DataReceived?.Invoke(this, new DataReceivedEventArgs(receivedData));
+        //        }
+        //    }
+        //    catch (TimeoutException)
+        //    {
+        //        // 读取超时是正常情况，不视为错误
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        ErrorOccurred?.Invoke(this, $"接收数据错误: {ex.Message}");
+        //    }
+        //}
         private void OnDataReceived(object sender, SerialDataReceivedEventArgs e)
         {
+            // 防止重入
+            if (_isReceiving) return;
+
+            lock (_receiveLock)
+            {
+                if (_isReceiving) return;
+                _isReceiving = true;
+            }
+
             try
-            {   
-                //检查当前串口缓冲区数据长度
-                if (_serialPort.BytesToRead > 0)
+            {
+                // 等待一小段时间，让数据积累
+                Thread.Sleep(10);
+
+                List<byte> tempBytes = new List<byte>();
+
+                // 循环读取直到没有数据
+                while (_serialPort.IsOpen && _serialPort.BytesToRead > 0)
                 {
-                    //根据缓冲区长度创建接收事件数组
-                    byte[] buffer = new byte[_serialPort.BytesToRead];
-                    _serialPort.Read(buffer, 0, buffer.Length);
-                    //将接收的数据传给接收事件的订阅者
-                    DataReceived?.Invoke(this, new DataReceivedEventArgs(buffer));
+                    int bytesToRead = Math.Min(_serialPort.BytesToRead, 4096);
+                    byte[] buffer = new byte[bytesToRead];
+
+                    int bytesRead = _serialPort.Read(buffer, 0, bytesToRead);
+                    if (bytesRead > 0)
+                    {
+                        // 只添加实际读取的字节
+                        if (bytesRead < buffer.Length)
+                        {
+                            byte[] actualData = new byte[bytesRead];
+                            Array.Copy(buffer, 0, actualData, 0, bytesRead);
+                            tempBytes.AddRange(actualData);
+                        }
+                        else
+                        {
+                            tempBytes.AddRange(buffer);
+                        }
+                    }
+                }
+
+                // 如果有数据，触发事件
+                if (tempBytes.Count > 0)
+                {
+                    byte[] dataBuf = tempBytes.ToArray();
+                    DataReceived?.Invoke(this, new DataReceivedEventArgs(dataBuf));
+                }
+            }
+            catch (TimeoutException)
+            {
+                // 超时是正常情况
+            }
+            catch (InvalidOperationException ex)
+            {
+                // 串口可能在读取过程中被关闭
+                if (!ex.Message.Contains("端口已关闭"))
+                {
+                    ErrorOccurred?.Invoke(this, $"接收数据时串口操作异常: {ex.Message}");
                 }
             }
             catch (Exception ex)
             {
                 ErrorOccurred?.Invoke(this, $"接收数据错误: {ex.Message}");
             }
+            finally
+            {
+                lock (_receiveLock)
+                {
+                    _isReceiving = false;
+                }
+            }
         }
+
         public void Dispose()
         {
             _portCheckTimer?.Stop();
             _portCheckTimer?.Dispose();
             _serialPort?.Close();
             _serialPort?.Dispose();
-            
-            
+                  
         }
     }
 
